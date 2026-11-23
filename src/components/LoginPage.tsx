@@ -40,6 +40,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Register-only state
   const [selectedRole, setSelectedRole] = useState<UserRole>('profesor');
@@ -54,6 +55,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
   const handleModeSwitch = (mode: 'login' | 'register') => {
     setAuthMode(mode);
+    setShowPassword(false);
+    setShowConfirmPassword(false);
     setErrorMsg(null);
     setSuccessMsg(null);
   };
@@ -550,32 +553,56 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                       <label className="block text-xs font-semibold text-slate-700 mb-1.5 leading-tight whitespace-nowrap">
                         5. Contraseña
                       </label>
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        required
-                        minLength={6}
-                        autoComplete="new-password"
-                        placeholder="Mínimo 6 caracteres"
-                        value={passwordInput}
-                        onChange={(e) => setPasswordInput(e.target.value)}
-                        className="w-full h-10 bg-white border border-[#D5DCE6] rounded-md px-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0F294A]"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          required
+                          minLength={6}
+                          autoComplete="new-password"
+                          placeholder="Mínimo 6 caracteres"
+                          value={passwordInput}
+                          onChange={(e) => setPasswordInput(e.target.value)}
+                          className="w-full h-10 bg-white border border-[#D5DCE6] rounded-md pl-3 pr-9 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0F294A]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                          title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                          className="absolute right-2.5 top-3 text-slate-400 hover:text-[#0F294A] cursor-pointer"
+                          tabIndex={-1}
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex flex-col">
                       <label className="block text-xs font-semibold text-slate-700 mb-1.5 leading-tight whitespace-nowrap">
                         Confirmar contraseña
                       </label>
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        required
-                        minLength={6}
-                        autoComplete="new-password"
-                        placeholder="Repita la contraseña"
-                        value={confirmPasswordInput}
-                        onChange={(e) => setConfirmPasswordInput(e.target.value)}
-                        className="w-full h-10 bg-white border border-[#D5DCE6] rounded-md px-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0F294A]"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showConfirmPassword ? 'text' : 'password'}
+                          required
+                          minLength={6}
+                          autoComplete="new-password"
+                          placeholder="Repita la contraseña"
+                          value={confirmPasswordInput}
+                          onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                          className="w-full h-10 bg-white border border-[#D5DCE6] rounded-md pl-3 pr-9 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0F294A]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          aria-label={showConfirmPassword ? 'Ocultar confirmación de contraseña' : 'Mostrar confirmación de contraseña'}
+                          title={showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                          className="absolute right-2.5 top-3 text-slate-400 hover:text-[#0F294A] cursor-pointer"
+                          tabIndex={-1}
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
                   </div>
 
