@@ -158,58 +158,65 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const pendingCount = todayStatusCards.filter(c => c.status === 'pending').length;
 
   return (
-    <div className="space-y-4 sm:space-y-5">
-      {/* Welcome Banner - Refined institutional letterhead style */}
-      <div className="bg-white border border-[#DCD7D0] rounded-xl p-4 sm:p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-5">
+      {/* Institutional Welcome Header */}
+      <div className="bg-white border border-[#D5DCE6] rounded-lg overflow-hidden shadow-2xs">
+        <div className="h-1 w-full flex">
+          <div className="w-3/4 bg-[#0F294A]" />
+          <div className="w-1/4 bg-[#B91C1C]" />
+        </div>
+        <div className="p-4 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5 min-w-0">
-            <div className="inline-flex items-center gap-2 text-xs text-[#8E1919] font-bold">
+            <div className="flex items-center gap-2 text-xs text-slate-600">
               <img
                 src="/assets/aistudio/cassa-sn-fondo_ebfb5d01.png"
-                alt="Escudo"
+                alt="Escudo I.P.E.T. N° 247"
+                referrerPolicy="no-referrer"
                 className="w-5 h-5 object-contain shrink-0"
               />
-              <span className="font-school-serif tracking-wide">I.P.E.T. N° 247 · Ing. Carlos A. Cassaffousth</span>
-              <span className="text-[#DCD7D0]">|</span>
-              <span className="text-slate-600 font-normal">Turno {currentUser.turn}</span>
+              <span className="font-school-serif font-bold text-[#0F294A]">I.P.E.T. N° 247</span>
+              <span className="text-slate-300" aria-hidden="true">·</span>
+              <span className="font-semibold text-[#B91C1C]">Turno {currentUser.turn}</span>
+              <span className="text-slate-300 hidden sm:inline" aria-hidden="true">·</span>
+              <span className="hidden sm:inline font-school-mono">{todayStr}</span>
             </div>
 
-            <h1 className="text-xl sm:text-2xl font-bold font-school-serif text-[#16212E] tracking-tight truncate">
+            <h1 className="text-xl sm:text-2xl font-bold font-school-serif text-[#0F294A] tracking-tight truncate">
               Libro de Aula · {currentUser.name}
             </h1>
 
-            <p className="text-xs sm:text-sm text-slate-700 max-w-2xl leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-600 max-w-2xl leading-relaxed">
               {isTeacher ? (
                 <span>
-                  Registro de cátedra docente: asiente las asistencias e inasistencias en sus <strong>materias y talleres técnicos asignados</strong>.
+                  Registro de cátedra docente: asiente las asistencias e inasistencias en sus{' '}
+                  <strong className="text-slate-900">materias y talleres técnicos asignados</strong>.
                 </span>
               ) : (
                 <span>
-                  Control de Preceptoría: asiente la <strong>asistencia general diaria</strong> del curso para el libro matriz de entrada institucional.
+                  Control de Preceptoría: asiente la{' '}
+                  <strong className="text-slate-900">asistencia general diaria</strong> del curso para el libro matriz institucional.
                 </span>
               )}
             </p>
 
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-slate-600 pt-1">
-              <span className="flex items-center gap-1 font-semibold text-[#16212E]">
-                <Calendar className="w-3.5 h-3.5 text-[#8E1919] shrink-0" />
-                Fecha: {todayStr}
+            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 pt-1">
+              <span className="flex items-center gap-1 font-medium text-[#0F294A] sm:hidden font-school-mono">
+                <Calendar className="w-3.5 h-3.5 text-[#B91C1C] shrink-0" />
+                {todayStr}
               </span>
-              <span className="text-[#DCD7D0]">·</span>
-              <span className="flex items-center gap-1 font-semibold text-[#2E5328]">
-                <Users className="w-3.5 h-3.5 text-[#2E5328] shrink-0" />
-                {allStudents.length} Alumnos en matrícula
+              <span className="flex items-center gap-1.5 font-medium text-slate-700">
+                <Users className="w-3.5 h-3.5 text-[#0F294A] shrink-0" />
+                <span className="font-school-mono font-semibold text-[#0F294A]">{allStudents.length}</span> alumnos en matrícula
               </span>
             </div>
           </div>
 
-          {/* Direct link to monthly reports */}
           <div className="flex items-center self-start md:self-auto shrink-0">
             <button
               onClick={() => onGoToMonthlyReport()}
-              className="bg-[#F8F7F4] hover:bg-[#EFECE6] text-[#16212E] font-semibold px-3.5 py-2 rounded-lg border border-[#DCD7D0] flex items-center gap-1.5 text-xs cursor-pointer transition-colors shadow-2xs"
+              className="bg-white hover:bg-[#F3F5F8] text-[#0F294A] font-semibold px-4 py-2 rounded-md border border-[#D5DCE6] flex items-center gap-1.5 text-xs cursor-pointer transition-colors"
             >
-              <FileSpreadsheet className="w-4 h-4 text-[#8E1919]" />
+              <FileSpreadsheet className="w-4 h-4 text-[#B91C1C]" />
               <span>Ver Planillas Mensuales</span>
             </button>
           </div>
@@ -217,11 +224,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* Course / Subject Roster Overview */}
-      <div className="bg-white border border-[#DCD7D0] rounded-xl p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 border-b border-[#E8E4DD] pb-3">
+      <div className="bg-white border border-[#D5DCE6] rounded-lg p-4 sm:p-6 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 border-b border-[#E4E9F0] pb-3.5">
           <div>
-            <h2 className="text-sm sm:text-base font-bold font-school-serif text-[#16212E] flex items-center gap-2">
-              <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-[#8E1919] shrink-0" />
+            <h2 className="text-sm sm:text-base font-bold font-school-serif text-[#0F294A] flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-[#B91C1C] shrink-0" />
               <span>
                 {isTeacher
                   ? 'Cátedras y Espacios Curriculares Asignados'
@@ -230,24 +237,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </h2>
             <p className="text-xs text-slate-600 mt-0.5">
               {isTeacher
-                ? 'Haga clic en cualquiera de sus cátedras para asentar o revisar la lista de hoy.'
-                : 'Haga clic en un curso para cargar o consultar la asistencia general del día.'}
+                ? 'Seleccione una cátedra para cargar o revisar la lista de hoy.'
+                : 'Seleccione un curso para cargar o consultar la asistencia general del día.'}
             </p>
           </div>
 
-          <div className="flex items-center gap-2 text-xs shrink-0 font-medium">
-            <span className="px-2.5 py-0.5 rounded bg-[#F4F9F3] text-[#2E5328] border border-[#C5DEC0] flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-[#2E5328]" />
-              {completedCount} Listos
+          <div className="flex items-center gap-3 text-xs shrink-0 font-medium text-slate-700">
+            <span className="flex items-center gap-1 font-school-mono">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+              <strong className="text-slate-900">{completedCount}</strong> Listos
             </span>
-            <span className="px-2.5 py-0.5 rounded bg-[#FFFBF5] text-[#8D5B18] border border-[#EADBCA] flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5 text-[#8D5B18]" />
-              {pendingCount} Pendientes
+            <span className="text-slate-300" aria-hidden="true">·</span>
+            <span className="flex items-center gap-1 font-school-mono">
+              <Clock className="w-3.5 h-3.5 text-[#B91C1C]" />
+              <strong className="text-slate-900">{pendingCount}</strong> Pendientes
             </span>
           </div>
         </div>
 
-        {/* Clean, Non-Redundant Status Cards */}
+        {/* Clean Institutional Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {todayStatusCards.map((item, idx) => {
             const isCompleted = item.status === 'completed';
@@ -256,29 +264,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div
                 key={idx}
                 onClick={() => onOpenTakeAttendance(item.courseId)}
-                className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between group ${
-                  isCompleted
-                    ? 'bg-[#FCFDFB] border-[#CDE1CA] hover:border-[#2E5328] hover:shadow-xs'
-                    : 'bg-[#FCFBFA] border-[#DCD7D0] hover:border-[#8E1919] hover:shadow-xs'
-                }`}
+                className="p-4 rounded-md border border-[#D5DCE6] bg-white hover:border-[#0F294A] transition-colors cursor-pointer flex flex-col justify-between group"
               >
                 <div>
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span className="text-[11px] font-bold text-[#16212E] bg-[#F1EFEA] px-2 py-0.5 rounded border border-[#DDD8D0]">
+                  <div className="flex items-center justify-between gap-2 text-xs mb-1.5">
+                    <span className="font-semibold text-[#0F294A]">
                       {item.courseName}
                     </span>
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                        isCompleted
-                          ? 'bg-[#2E5328] text-white'
-                          : 'bg-[#FFF3E0] text-[#9A3412] border border-[#FED7AA]'
+                      className={`text-[11px] font-semibold ${
+                        isCompleted ? 'text-emerald-700' : 'text-[#B91C1C]'
                       }`}
                     >
-                      {isCompleted ? '✓ Asentado' : 'Pendiente hoy'}
+                      {isCompleted ? 'Asentado' : 'Pendiente hoy'}
                     </span>
                   </div>
 
-                  <h3 className="font-school-serif font-bold text-sm text-[#16212E] mt-1 leading-snug group-hover:text-[#8E1919] transition-colors">
+                  <h3 className="font-school-serif font-bold text-sm text-slate-900 leading-snug group-hover:text-[#0F294A] transition-colors">
                     {item.title}
                   </h3>
                   <p className="text-[11px] text-slate-500 mt-0.5">
@@ -286,18 +288,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </p>
                 </div>
 
-                <div className="mt-3.5 pt-2.5 border-t border-[#EAE6DF] flex items-center justify-between text-xs">
+                <div className="mt-3.5 pt-2.5 border-t border-[#E4E9F0] flex items-center justify-between text-xs">
                   {isCompleted ? (
-                    <span className="text-[#2E5328] font-bold text-[11px]">
+                    <span className="text-slate-700 font-medium text-[11px] font-school-mono">
                       {item.presentes} Pres. · {item.ausentes} Aus.
                     </span>
                   ) : (
-                    <span className="text-[#9A3412] font-medium text-[11px]">
-                      {item.totalStudents} Alumnos sin asentar
+                    <span className="text-slate-600 font-medium text-[11px] font-school-mono">
+                      {item.totalStudents} alumnos
                     </span>
                   )}
 
-                  <span className="text-slate-500 group-hover:text-[#8E1919] font-semibold text-[11px] flex items-center gap-0.5 transition-colors">
+                  <span className="text-[#0F294A] group-hover:text-[#B91C1C] font-semibold text-[11px] flex items-center gap-0.5 transition-colors">
                     <span>{isCompleted ? 'Revisar' : 'Cargar'}</span>
                     <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                   </span>
@@ -308,11 +310,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Informative School Tips Footer */}
+      {/* Institutional Reference Notes */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="bg-white border border-[#DCD7D0] rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-          <div className="flex items-center gap-1.5 text-[#8E1919] font-school-serif font-bold text-xs mb-1">
-            <Info className="w-4 h-4 text-[#8E1919] shrink-0" />
+        <div className="bg-white border border-[#D5DCE6] rounded-lg p-4 shadow-2xs">
+          <div className="flex items-center gap-1.5 text-[#B91C1C] font-school-serif font-bold text-xs mb-1">
+            <Info className="w-4 h-4 shrink-0" />
             <span>Cómputo de Faltas Escolares</span>
           </div>
           <p className="text-[11px] text-slate-600 leading-relaxed">
@@ -320,9 +322,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </p>
         </div>
 
-        <div className="bg-white border border-[#DCD7D0] rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-          <div className="flex items-center gap-1.5 text-[#2E5328] font-school-serif font-bold text-xs mb-1">
-            <FileSpreadsheet className="w-4 h-4 text-[#2E5328] shrink-0" />
+        <div className="bg-white border border-[#D5DCE6] rounded-lg p-4 shadow-2xs">
+          <div className="flex items-center gap-1.5 text-[#0F294A] font-school-serif font-bold text-xs mb-1">
+            <FileSpreadsheet className="w-4 h-4 shrink-0" />
             <span>Planillas Oficiales del I.P.E.T. N° 247</span>
           </div>
           <p className="text-[11px] text-slate-600 leading-relaxed">

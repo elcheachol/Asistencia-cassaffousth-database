@@ -1,14 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --color-school-crimson: #8E1919;
-  --color-school-crimson-hover: #751414;
-  --color-school-navy: #16212E;
-  --color-school-olive: #2E5328;
-  --color-school-amber: #B45309;
-  --color-paper-bg: #F8F7F4;
+  --color-ipet-blue: #0F294A;
+  --color-ipet-blue-dark: #0A1D37;
+  --color-ipet-red: #B91C1C;
+  --color-ipet-red-hover: #991B1B;
+  --color-paper-bg: #F3F5F8;
   --color-paper-card: #FFFFFF;
-  --color-paper-border: #DCD7D0;
+  --color-paper-border: #D5DCE6;
 }
 
 html, body {
@@ -16,8 +15,8 @@ html, body {
   width: 100%;
   max-width: 100%;
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: #F8F7F4;
-  color: #1A202C;
+  background-color: #F3F5F8;
+  color: #111827;
 }
 
 .font-school-serif {

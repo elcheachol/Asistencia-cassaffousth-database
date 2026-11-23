@@ -146,10 +146,10 @@ export default function App() {
 
   if (!isInitialized) {
     return (
-      <div className="min-h-screen bg-[#f4f6f9] flex items-center justify-center text-slate-700">
-        <div className="flex items-center gap-3">
-          <div className="w-5 h-5 border-2 border-[#143254] border-t-transparent rounded-full animate-spin" />
-          <span className="font-bold text-sm">Cargando sistema del I.P.E.T. N° 247...</span>
+      <div className="min-h-screen bg-[#F3F5F8] flex items-center justify-center text-slate-800">
+        <div className="flex items-center gap-3 bg-white border border-[#D5DCE6] px-5 py-3.5 rounded-lg shadow-2xs">
+          <div className="w-4 h-4 border-2 border-[#0F294A] border-t-[#B91C1C] rounded-full animate-spin" />
+          <span className="font-semibold text-sm text-[#0F294A]">Cargando sistema del I.P.E.T. N° 247...</span>
         </div>
       </div>
     );
@@ -157,22 +157,22 @@ export default function App() {
 
   if (loadError && !currentUser) {
     return (
-      <div className="min-h-screen bg-[#f4f6f9] flex items-center justify-center p-4">
-        <div className="bg-white border-2 border-rose-300 rounded-xl p-6 max-w-md w-full shadow-md text-center space-y-4">
-          <AlertCircle className="w-10 h-10 text-rose-600 mx-auto" />
-          <h2 className="text-lg font-black text-slate-900">Error de conexión con el servidor</h2>
+      <div className="min-h-screen bg-[#F3F5F8] flex items-center justify-center p-4">
+        <div className="bg-white border border-[#D5DCE6] rounded-lg p-6 max-w-md w-full shadow-sm text-center space-y-4">
+          <AlertCircle className="w-9 h-9 text-[#B91C1C] mx-auto" />
+          <h2 className="text-lg font-bold font-school-serif text-[#0F294A]">Error de conexión con el servidor</h2>
           <p className="text-xs text-slate-600">{loadError}</p>
           <div className="flex items-center justify-center gap-2">
             <button
               onClick={loadAuthenticatedData}
-              className="bg-[#143254] hover:bg-[#0e243d] text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 cursor-pointer"
+              className="bg-[#0F294A] hover:bg-[#0A1D37] text-white font-semibold px-4 py-2 rounded-md text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Reintentar</span>
             </button>
             <button
               onClick={handleLogout}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-4 py-2 rounded-lg text-xs cursor-pointer border border-slate-300"
+              className="bg-white hover:bg-slate-50 text-slate-800 font-semibold px-4 py-2 rounded-md text-xs cursor-pointer border border-[#D5DCE6] transition-colors"
             >
               Cerrar Sesión
             </button>
@@ -187,7 +187,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f6f9] text-slate-800 flex flex-col font-sans selection:bg-amber-200 selection:text-amber-900">
+    <div className="min-h-screen bg-[#F3F5F8] text-slate-900 flex flex-col font-sans selection:bg-[#0F294A] selection:text-white">
       {/* Top Navbar */}
       <Navbar
         currentUser={currentUser}
@@ -203,7 +203,7 @@ export default function App() {
       />
 
       {/* Main Content Area - with pb-20 for mobile bottom navigation safe zone */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-5 pb-20 md:pb-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-6 pb-20 md:pb-8">
         {currentTab === 'dashboard' && (
           <DashboardView
             key={`dash-${dataVersion}`}
@@ -254,15 +254,15 @@ export default function App() {
       </main>
 
       {/* Footer (hidden on print) */}
-      <footer className="bg-[#12263f] text-slate-300 border-t-2 border-[#d4a017] py-4 text-center text-xs print:hidden mt-auto">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-white">Escuela de Educación Técnica I.P.E.T. N° 247</span>
-            <span>•</span>
-            <span>Sistema Oficial de Asistencias & Cátedras</span>
+      <footer className="bg-white text-slate-600 border-t border-[#D5DCE6] py-3.5 text-xs print:hidden mt-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-center sm:text-left">
+            <span className="font-school-serif font-bold text-[#0F294A]">I.P.E.T. N° 247</span>
+            <span className="text-slate-300" aria-hidden="true">·</span>
+            <span>Ing. Carlos A. Cassaffousth · Educación Secundaria Técnica</span>
           </div>
-          <div className="text-slate-400">
-            Libro de Aula Digital • Ciclo Lectivo 2026
+          <div className="text-slate-500">
+            Registro de Asistencias · Ciclo Lectivo 2026
           </div>
         </div>
       </footer>

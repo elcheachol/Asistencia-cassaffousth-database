@@ -1,27 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import confetti from 'canvas-confetti';
 import {
-  Calendar,
   CheckCircle2,
-  XCircle,
-  Clock,
-  FileCheck2,
-  Users,
   Search,
   Save,
   CheckCheck,
   RotateCcw,
-  BookOpen,
   School,
   Info,
   ShieldCheck,
   Lock,
   HelpCircle,
-  ClipboardList,
 } from 'lucide-react';
 import {
-  Course,
-  Subject,
   AttendanceStatus,
   AttendanceEntry,
   AttendanceSheet,
@@ -153,7 +143,6 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
   }, [selectedDate, selectedCourseId, selectedSubjectId, students]);
 
   const currentCourse = availableCourses.find(c => c.id === selectedCourseId);
-  const currentSubject = availableSubjects.find(s => s.id === selectedSubjectId);
 
   const counts = useMemo(() => {
     let p = 0;
@@ -242,16 +231,6 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
       setExistingRecordNotice(true);
       setIsSavedRecently(true);
 
-      try {
-        confetti({
-          particleCount: 40,
-          spread: 50,
-          origin: { y: 0.8 },
-        });
-      } catch {
-        // ignore
-      }
-
       if (onSavedSuccess) {
         onSavedSuccess();
       }
@@ -270,142 +249,145 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
 
   return (
     <div className="space-y-4 sm:space-y-5">
-      {/* Top Section - Fully responsive school binder card */}
-      <div className="bg-white border-2 border-slate-300 rounded-xl p-4 sm:p-5 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-          <div className="flex items-start gap-3 min-w-0">
-            <div className="w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center shrink-0">
-              <img
-                src="/assets/aistudio/cassa-sn-fondo_ebfb5d01.png"
-                alt="Escudo I.P.E.T. N° 247"
-                className="w-10 h-10 sm:w-11 sm:h-11 object-contain drop-shadow-xs"
-              />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] sm:text-xs uppercase font-bold tracking-wider text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">
-                  {isTeacher ? 'Módulo Profesor' : 'Módulo Preceptoría'}
-                </span>
-                <span className="text-[10px] sm:text-xs text-amber-900 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-300 truncate">
-                  I.P.E.T. N° 247
-                </span>
+      {/* Institutional Header Card */}
+      <div className="bg-white border border-[#D5DCE6] rounded-lg overflow-hidden shadow-2xs">
+        <div className="h-1 w-full flex">
+          <div className="w-3/4 bg-[#0F294A]" />
+          <div className="w-1/4 bg-[#B91C1C]" />
+        </div>
+
+        <div className="p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E4E9F0] pb-3.5">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center shrink-0">
+                <img
+                  src="/assets/aistudio/cassa-sn-fondo_ebfb5d01.png"
+                  alt="Escudo I.P.E.T. N° 247"
+                  referrerPolicy="no-referrer"
+                  className="w-10 h-10 sm:w-11 sm:h-11 object-contain"
+                />
               </div>
-              <h1 className="text-lg sm:text-xl font-black text-slate-900 mt-1 truncate">
-                {isTeacher ? 'Asistencia de Cátedra / Taller' : 'Asistencia General de Entrada'}
-              </h1>
-              <p className="text-[11px] sm:text-xs text-slate-600 mt-0.5 truncate">
-                {isTeacher ? (
-                  <span>Docente: <strong>{currentUser.name}</strong> • Registro de materias asignadas</span>
-                ) : (
-                  <span>Preceptor: <strong>{currentUser.name}</strong> • Registro diario general del curso</span>
-                )}
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-[#B91C1C] truncate">
+                  I.P.E.T. N° 247 · {isTeacher ? 'Módulo Profesor' : 'Módulo Preceptoría'}
+                </div>
+                <h1 className="text-lg sm:text-xl font-bold font-school-serif text-[#0F294A] mt-0.5 truncate">
+                  {isTeacher ? 'Asistencia de Cátedra / Taller' : 'Asistencia General de Entrada'}
+                </h1>
+                <p className="text-xs text-slate-600 mt-0.5 truncate">
+                  {isTeacher ? (
+                    <span>Docente: <strong className="text-slate-900">{currentUser.name}</strong> · Registro de materias asignadas</span>
+                  ) : (
+                    <span>Preceptor: <strong className="text-slate-900">{currentUser.name}</strong> · Registro diario general del curso</span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowTeacherHelp(!showTeacherHelp)}
+                className="text-xs text-slate-700 hover:text-[#0F294A] bg-white hover:bg-slate-50 border border-[#D5DCE6] px-3 py-2 rounded-md flex items-center gap-1.5 cursor-pointer font-semibold transition-colors"
+              >
+                <HelpCircle className="w-3.5 h-3.5 text-slate-500" />
+                <span>{showTeacherHelp ? 'Ocultar' : 'Orientaciones'}</span>
+              </button>
+
+              <button
+                onClick={handleSaveAttendance}
+                disabled={isSaving}
+                className="bg-[#0F294A] hover:bg-[#0A1D37] disabled:opacity-60 text-white font-semibold px-4 py-2 rounded-md flex items-center gap-1.5 text-xs sm:text-sm cursor-pointer transition-colors"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSaving ? 'Guardando...' : 'Guardar'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Collapsible Orientative Box */}
+          {showTeacherHelp && (
+            <div className="mt-3 p-3.5 bg-[#F8FAFC] border border-[#D5DCE6] rounded-md text-xs text-slate-700 space-y-1.5">
+              <div className="font-bold text-[#0F294A] flex items-center gap-1.5">
+                <Info className="w-4 h-4 text-[#B91C1C] shrink-0" />
+                <span>Normativa y Roles de Asistencia I.P.E.T. N° 247</span>
+              </div>
+              <p className="text-[11px] leading-relaxed">
+                • <strong className="text-slate-900">Preceptores:</strong> Tienen a su cargo exclusivamente la <em>Asistencia General Institucional</em> (entrada diaria del curso para el libro matriz). No marcan materias individuales.
+              </p>
+              <p className="text-[11px] leading-relaxed">
+                • <strong className="text-slate-900">Profesores:</strong> Tienen a su cargo exclusivamente la asistencia de sus <em>materias y módulos de taller técnico</em> asignados. No tienen acceso a la asistencia general.
+              </p>
+              <p className="text-[11px] leading-relaxed">
+                • <strong className="text-slate-900">Marcas:</strong> [P] Presente, [A] Ausente injustificado (1 falta), [J] Justificado (con certificado), [T] Tardanza pasados 15 min (0.5 falta).
               </p>
             </div>
-          </div>
+          )}
 
-          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-            <button
-              type="button"
-              onClick={() => setShowTeacherHelp(!showTeacherHelp)}
-              className="text-xs text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2.5 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer font-medium"
-            >
-              <HelpCircle className="w-3.5 h-3.5 text-slate-600" />
-              <span>{showTeacherHelp ? 'Ocultar' : 'Orientaciones'}</span>
-            </button>
-
-            <button
-              onClick={handleSaveAttendance}
-              disabled={isSaving}
-              className="bg-[#24693d] hover:bg-[#1c5531] disabled:opacity-60 text-white font-bold px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-lg shadow-xs flex items-center gap-1.5 text-xs sm:text-sm cursor-pointer border border-emerald-800 active:scale-95 transition-all"
-            >
-              <Save className="w-4 h-4" />
-              <span>{isSaving ? 'Guardando...' : 'Guardar'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Collapsible Orientative Box */}
-        {showTeacherHelp && (
-          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-slate-800 space-y-1.5">
-            <div className="font-bold text-blue-950 flex items-center gap-1.5">
-              <Info className="w-4 h-4 text-blue-700 shrink-0" />
-              <span>Normativa y Roles de Asistencia I.P.E.T. N° 247:</span>
-            </div>
-            <p className="text-[11px] text-slate-700">
-              • <strong>Preceptores:</strong> Tienen a su cargo exclusivamente la <em>Asistencia General Institucional</em> (entrada diaria del curso para el libro matriz). No marcan materias individuales.
-            </p>
-            <p className="text-[11px] text-slate-700">
-              • <strong>Profesores:</strong> Tienen a su cargo exclusivamente la asistencia de sus <em>materias y módulos de taller técnico</em> asignados. No tienen acceso a la asistencia general.
-            </p>
-            <p className="text-[11px] text-slate-700">
-              • <strong>Marcas:</strong> [P] Presente, [A] Ausente injustificado (1 falta), [J] Justificado (con certificado), [T] Tardanza pasados 15 min (0.5 falta).
-            </p>
-          </div>
-        )}
-
-        {/* Informative Role Banner */}
-        <div className="mt-3 p-2.5 rounded-lg text-xs flex items-center gap-2 border bg-slate-50 border-slate-300 text-slate-800">
-          <ShieldCheck className="w-4 h-4 text-blue-700 shrink-0" />
-          <span>
-            {isTeacher ? (
-              <span><strong>Restricción activa:</strong> Como profesor, usted asienta la asistencia de sus materias a cargo. La Asistencia General corresponde a Preceptoría.</span>
-            ) : (
-              <span><strong>Función de Preceptoría:</strong> Usted asienta la Asistencia General del curso. La asistencia de materias corresponde a los profesores.</span>
-            )}
-          </span>
-        </div>
-
-        {/* Saved Success Notice */}
-        {isSavedRecently && (
-          <div className="mt-3 p-2.5 bg-emerald-50 border border-emerald-400 rounded-lg flex items-center justify-between text-xs text-emerald-950">
-            <span className="flex items-center gap-1.5 font-bold">
-              <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-              ¡Asistencia guardada correctamente!
+          {/* Informative Role Banner */}
+          <div className="mt-3 p-2.5 rounded-md text-xs flex items-center gap-2 bg-[#F8FAFC] border border-[#D5DCE6] border-l-4 border-l-[#0F294A] text-slate-700">
+            <ShieldCheck className="w-4 h-4 text-[#0F294A] shrink-0" />
+            <span>
+              {isTeacher ? (
+                <span><strong className="text-[#0F294A]">Restricción activa:</strong> Como profesor, usted asienta la asistencia de sus materias a cargo. La Asistencia General corresponde a Preceptoría.</span>
+              ) : (
+                <span><strong className="text-[#0F294A]">Función de Preceptoría:</strong> Usted asienta la Asistencia General del curso. La asistencia de materias corresponde a los profesores.</span>
+              )}
             </span>
-            {onGoToMonthlyReport && (
-              <button
-                onClick={() => {
-                  const parts = selectedDate.split('-');
-                  onGoToMonthlyReport(selectedCourseId, parseInt(parts[1], 10), parseInt(parts[0], 10));
-                }}
-                className="underline font-bold text-emerald-800 hover:text-emerald-950 cursor-pointer ml-2"
-              >
-                Ver Planilla Mensual →
-              </button>
-            )}
           </div>
-        )}
 
-        {saveError && (
-          <div className="mt-3 p-2.5 bg-rose-50 border border-rose-400 rounded-lg text-xs text-rose-900 font-semibold">
-            {saveError}
-          </div>
-        )}
+          {/* Saved Success Notice */}
+          {isSavedRecently && (
+            <div className="mt-3 p-2.5 bg-emerald-50 border border-emerald-300 rounded-md flex items-center justify-between text-xs text-emerald-950">
+              <span className="flex items-center gap-1.5 font-semibold">
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                Asistencia guardada correctamente en la base de datos.
+              </span>
+              {onGoToMonthlyReport && (
+                <button
+                  onClick={() => {
+                    const parts = selectedDate.split('-');
+                    onGoToMonthlyReport(selectedCourseId, parseInt(parts[1], 10), parseInt(parts[0], 10));
+                  }}
+                  className="underline font-bold text-[#0F294A] hover:text-[#B91C1C] cursor-pointer ml-2"
+                >
+                  Ver Planilla Mensual →
+                </button>
+              )}
+            </div>
+          )}
 
-        {existingRecordNotice && (
-          <div className="mt-2.5 p-2 bg-amber-50 border border-amber-300 rounded text-xs text-amber-950 flex items-center gap-1.5">
-            <Info className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-            <span>Ya existe registro para este día y curso. Al presionar Guardar se actualizará.</span>
-          </div>
-        )}
+          {saveError && (
+            <div className="mt-3 p-2.5 bg-rose-50 border border-rose-300 rounded-md text-xs text-[#B91C1C] font-semibold">
+              {saveError}
+            </div>
+          )}
+
+          {existingRecordNotice && (
+            <div className="mt-2.5 p-2 bg-[#F8FAFC] border border-[#D5DCE6] rounded-md text-xs text-slate-700 flex items-center gap-1.5">
+              <Info className="w-3.5 h-3.5 text-[#0F294A] shrink-0" />
+              <span>Ya existe registro para este día y curso. Al presionar Guardar se actualizará.</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Selectors Card - Fully Responsive 1 to 3 columns */}
-      <div className="bg-white border-2 border-slate-300 rounded-xl p-4 shadow-xs">
-        <div className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-3 flex items-center gap-1.5">
-          <School className="w-4 h-4 text-slate-600 shrink-0" />
+      {/* Selectors Card */}
+      <div className="bg-white border border-[#D5DCE6] rounded-lg p-4 shadow-2xs">
+        <div className="text-xs font-bold uppercase tracking-wider text-[#0F294A] mb-3 flex items-center gap-1.5">
+          <School className="w-4 h-4 text-[#B91C1C] shrink-0" />
           <span>Datos de la Clase / Jornada</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {/* 1. Fecha */}
-          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-            <label className="block text-xs font-bold text-slate-800 mb-1 flex items-center justify-between">
-              <span>1. Fecha:</span>
+          <div className="bg-[#F8FAFC] p-2.5 rounded-md border border-[#E4E9F0]">
+            <label className="block text-xs font-semibold text-slate-800 mb-1 flex items-center justify-between">
+              <span>1. Fecha</span>
               <button
                 type="button"
                 onClick={() => setSelectedDate(getTodayStr())}
-                className="text-[11px] text-blue-700 hover:underline font-semibold cursor-pointer"
+                className="text-[11px] text-[#0F294A] hover:text-[#B91C1C] hover:underline font-semibold cursor-pointer"
               >
                 Hoy
               </button>
@@ -414,19 +396,19 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
               type="date"
               value={selectedDate}
               onChange={e => setSelectedDate(e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded py-1.5 px-2 text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-600"
+              className="w-full h-9 bg-white border border-[#D5DCE6] rounded-md px-2.5 text-xs font-school-mono text-slate-900 font-semibold focus:outline-none focus:border-[#0F294A]"
             />
           </div>
 
           {/* 2. Curso */}
-          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-            <label className="block text-xs font-bold text-slate-800 mb-1">
-              2. Curso / División:
+          <div className="bg-[#F8FAFC] p-2.5 rounded-md border border-[#E4E9F0]">
+            <label className="block text-xs font-semibold text-slate-800 mb-1">
+              2. Curso / División
             </label>
             <select
               value={selectedCourseId}
               onChange={e => setSelectedCourseId(e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded py-1.5 px-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600"
+              className="w-full h-9 bg-white border border-[#D5DCE6] rounded-md px-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-[#0F294A]"
             >
               {availableCourses.map(course => (
                 <option key={course.id} value={course.id}>
@@ -437,30 +419,26 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
           </div>
 
           {/* 3. Materia: STRICT SEPARATION */}
-          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 sm:col-span-2 lg:col-span-1">
-            <label className="block text-xs font-bold text-slate-800 mb-1 flex items-center justify-between">
-              <span>3. Materia / Cátedra:</span>
-              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
-                isTeacher ? 'text-blue-900 bg-blue-100 border-blue-300' : 'text-amber-900 bg-amber-100 border-amber-300'
-              }`}>
+          <div className="bg-[#F8FAFC] p-2.5 rounded-md border border-[#E4E9F0] sm:col-span-2 lg:col-span-1">
+            <label className="block text-xs font-semibold text-slate-800 mb-1 flex items-center justify-between">
+              <span>3. Materia / Cátedra</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#B91C1C]">
                 {isTeacher ? 'Profesor' : 'Preceptoría'}
               </span>
             </label>
 
-            {/* PRECEPTOR: FIXED to Asistencia General, NO OTHER SUBJECTS */}
             {!isTeacher ? (
-              <div className="bg-white border border-slate-300 rounded py-1.5 px-2 text-xs font-bold text-slate-800 flex items-center justify-between">
+              <div className="h-9 bg-white border border-[#D5DCE6] rounded-md px-2.5 text-xs font-semibold text-[#0F294A] flex items-center justify-between">
                 <span className="truncate">Asistencia General (Preceptoría / Entrada)</span>
                 <span title="Fijado: Preceptoría solo asienta asistencia general" className="inline-flex shrink-0 ml-1">
-                  <Lock className="w-3.5 h-3.5 text-slate-500" />
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
                 </span>
               </div>
             ) : (
-              /* PROFESSOR: ONLY curricular subjects */
               <select
                 value={selectedSubjectId}
                 onChange={e => setSelectedSubjectId(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded py-1.5 px-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600"
+                className="w-full h-9 bg-white border border-[#D5DCE6] rounded-md px-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-[#0F294A]"
               >
                 {availableSubjects.map(sub => (
                   <option key={sub.id} value={sub.id}>
@@ -470,7 +448,7 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
               </select>
             )}
 
-            <p className="text-[10px] text-slate-600 mt-1">
+            <p className="text-[10px] text-slate-500 mt-1">
               {!isTeacher
                 ? 'Preceptor: Control de entrada general del curso.'
                 : 'Profesor: Solo se muestran sus materias asignadas.'}
@@ -479,15 +457,15 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
         </div>
 
         {/* Schedule & Notes */}
-        <div className="mt-3 pt-2.5 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+        <div className="mt-3 pt-3 border-t border-[#E4E9F0] grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           <div>
             <label className="block font-semibold text-slate-700 mb-1">
-              Módulo / Horario:
+              Módulo / Horario
             </label>
             <select
               value={classHour}
               onChange={e => setClassHour(e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded py-1 px-2 text-xs text-slate-800"
+              className="w-full h-9 bg-white border border-[#D5DCE6] rounded-md px-2.5 text-xs text-slate-800 focus:outline-none focus:border-[#0F294A]"
             >
               <option value="1° y 2° Módulo (07:30 a 09:00)">1° y 2° Módulo (07:30 a 09:00)</option>
               <option value="3° y 4° Módulo (09:15 a 10:45)">3° y 4° Módulo (09:15 a 10:45)</option>
@@ -498,73 +476,71 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
           </div>
           <div>
             <label className="block font-semibold text-slate-700 mb-1">
-              Observación de la clase (opcional):
+              Observación de la clase (opcional)
             </label>
             <input
               type="text"
-              placeholder="Ej: Práctica de pañol, evaluación, paro de transporte..."
+              placeholder="Ej: Práctica de pañol, evaluación, acto escolar..."
               value={generalNotes}
               onChange={e => setGeneralNotes(e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded py-1 px-2 text-xs text-slate-800 placeholder-slate-400"
+              className="w-full h-9 bg-white border border-[#D5DCE6] rounded-md px-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0F294A]"
             />
           </div>
         </div>
       </div>
 
-      {/* Metric Counters - Responsive Grid */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-        <div className="bg-white border border-slate-300 p-2 rounded-lg text-center">
-          <div className="text-[10px] font-bold text-slate-600 uppercase">Total</div>
-          <div className="text-lg font-black text-slate-900">{counts.total}</div>
+      {/* Metric Counters Strip */}
+      <div className="bg-white border border-[#D5DCE6] rounded-lg grid grid-cols-3 sm:grid-cols-6 divide-y sm:divide-y-0 sm:divide-x divide-[#E4E9F0] overflow-hidden shadow-2xs">
+        <div className="p-2.5 text-center">
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total</div>
+          <div className="text-lg font-bold font-school-mono text-[#0F294A]">{counts.total}</div>
         </div>
-        <div className="bg-emerald-50 border border-emerald-300 p-2 rounded-lg text-center">
-          <div className="text-[10px] font-bold text-emerald-900 uppercase">Presentes</div>
-          <div className="text-lg font-black text-emerald-700">{counts.p}</div>
+        <div className="p-2.5 text-center">
+          <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Presentes</div>
+          <div className="text-lg font-bold font-school-mono text-emerald-700">{counts.p}</div>
         </div>
-        <div className="bg-rose-50 border border-rose-300 p-2 rounded-lg text-center">
-          <div className="text-[10px] font-bold text-rose-900 uppercase">Ausentes</div>
-          <div className="text-lg font-black text-rose-700">{counts.a}</div>
+        <div className="p-2.5 text-center">
+          <div className="text-[10px] font-bold text-[#B91C1C] uppercase tracking-wider">Ausentes</div>
+          <div className="text-lg font-bold font-school-mono text-[#B91C1C]">{counts.a}</div>
         </div>
-        <div className="bg-sky-50 border border-sky-300 p-2 rounded-lg text-center">
-          <div className="text-[10px] font-bold text-sky-900 uppercase">Justif.</div>
-          <div className="text-lg font-black text-sky-700">{counts.j}</div>
+        <div className="p-2.5 text-center">
+          <div className="text-[10px] font-bold text-[#0F294A] uppercase tracking-wider">Justif.</div>
+          <div className="text-lg font-bold font-school-mono text-[#0F294A]">{counts.j}</div>
         </div>
-        <div className="bg-amber-50 border border-amber-300 p-2 rounded-lg text-center">
-          <div className="text-[10px] font-bold text-amber-900 uppercase">Tardanzas</div>
-          <div className="text-lg font-black text-amber-700">{counts.t}</div>
+        <div className="p-2.5 text-center">
+          <div className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Tardanzas</div>
+          <div className="text-lg font-bold font-school-mono text-amber-700">{counts.t}</div>
         </div>
-        <div className="bg-slate-50 border border-slate-300 p-2 rounded-lg text-center">
-          <div className="text-[10px] font-bold text-slate-700 uppercase">% Asist.</div>
-          <div className="text-lg font-black text-slate-900">{counts.rate}%</div>
+        <div className="p-2.5 text-center bg-[#F8FAFC]">
+          <div className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">% Asist.</div>
+          <div className="text-lg font-bold font-school-mono text-[#0F294A]">{counts.rate}%</div>
         </div>
       </div>
 
-      {/* Roster Table - Smooth Mobile Horizontal Scroll & Touch Buttons */}
-      <div className="bg-white border-2 border-slate-300 rounded-xl shadow-xs overflow-hidden">
+      {/* Roster Table */}
+      <div className="bg-white border border-[#D5DCE6] rounded-lg shadow-2xs overflow-hidden">
         {/* Table Toolbar */}
-        <div className="p-3 bg-slate-100 border-b border-slate-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Buscar por apellido o DNI (sin tildes)..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded py-1 pl-8 pr-2 text-xs text-slate-900 focus:outline-none focus:border-blue-600"
-              />
-            </div>
+        <div className="p-3 bg-[#F8FAFC] border-b border-[#E4E9F0] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="relative w-full sm:w-72">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Buscar por apellido o DNI (sin tildes)..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full h-9 bg-white border border-[#D5DCE6] rounded-md pl-8 pr-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0F294A]"
+            />
           </div>
 
           <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
             <button
               type="button"
               onClick={handleMarkAllPresent}
-              className="bg-[#24693d] hover:bg-[#1c5531] text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1 cursor-pointer shadow-xs"
+              className="bg-[#0F294A] hover:bg-[#0A1D37] text-white px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
               title="Marcar todos los alumnos como presentes"
             >
               <CheckCheck className="w-3.5 h-3.5" />
-              <span>✓ Todos Presentes</span>
+              <span>Todos Presentes</span>
             </button>
 
             <button
@@ -576,48 +552,48 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
                 });
                 setEntries(updated);
               }}
-              className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-2 py-1.5 rounded text-xs font-semibold cursor-pointer border border-slate-300"
+              className="bg-white hover:bg-slate-100 text-slate-700 px-2.5 py-1.5 rounded-md text-xs font-semibold cursor-pointer border border-[#D5DCE6] transition-colors flex items-center gap-1"
             >
-              <RotateCcw className="w-3 h-3 inline mr-1" />
+              <RotateCcw className="w-3 h-3" />
               <span>Limpiar</span>
             </button>
           </div>
         </div>
 
         {/* Legend */}
-        <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 text-[11px] text-slate-700 flex flex-wrap items-center gap-3">
-          <span className="font-bold text-slate-900">Marcas:</span>
-          <span className="inline-flex items-center gap-1 text-emerald-800 font-bold">
-            <span className="w-3.5 h-3.5 rounded bg-emerald-600 text-white flex items-center justify-center text-[9px]">P</span>
+        <div className="px-3.5 py-2 bg-white border-b border-[#E4E9F0] text-[11px] text-slate-600 flex flex-wrap items-center gap-4">
+          <span className="font-bold text-[#0F294A]">Referencias:</span>
+          <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-800">
+            <span className="w-4 h-4 rounded bg-emerald-700 text-white flex items-center justify-center text-[10px] font-school-mono">P</span>
             Presente
           </span>
-          <span className="inline-flex items-center gap-1 text-rose-800 font-bold">
-            <span className="w-3.5 h-3.5 rounded bg-rose-600 text-white flex items-center justify-center text-[9px]">A</span>
+          <span className="inline-flex items-center gap-1.5 font-semibold text-[#B91C1C]">
+            <span className="w-4 h-4 rounded bg-[#B91C1C] text-white flex items-center justify-center text-[10px] font-school-mono">A</span>
             Ausente (1 falta)
           </span>
-          <span className="inline-flex items-center gap-1 text-sky-800 font-bold">
-            <span className="w-3.5 h-3.5 rounded bg-sky-600 text-white flex items-center justify-center text-[9px]">J</span>
+          <span className="inline-flex items-center gap-1.5 font-semibold text-[#0F294A]">
+            <span className="w-4 h-4 rounded bg-[#0F294A] text-white flex items-center justify-center text-[10px] font-school-mono">J</span>
             Justificado
           </span>
-          <span className="inline-flex items-center gap-1 text-amber-800 font-bold">
-            <span className="w-3.5 h-3.5 rounded bg-amber-600 text-white flex items-center justify-center text-[9px]">T</span>
+          <span className="inline-flex items-center gap-1.5 font-semibold text-amber-800">
+            <span className="w-4 h-4 rounded bg-amber-600 text-white flex items-center justify-center text-[10px] font-school-mono">T</span>
             Tardanza (0.5 falta)
           </span>
         </div>
 
-        {/* Table with Touch Targets */}
+        {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm text-slate-900 border-collapse">
-            <thead className="bg-[#12263f] text-white text-[11px] uppercase tracking-wider">
+            <thead className="bg-[#0F294A] text-white text-[11px] uppercase tracking-wider">
               <tr>
-                <th className="py-2 px-2 text-center w-8 border border-[#1c3c63]">#</th>
-                <th className="py-2 px-3 min-w-[180px] border border-[#1c3c63]">Estudiante</th>
-                <th className="py-2 px-2 text-center w-24 hidden sm:table-cell border border-[#1c3c63]">D.N.I.</th>
-                <th className="py-2 px-2 text-center min-w-[150px] border border-[#1c3c63]">Marca</th>
-                <th className="py-2 px-2 min-w-[160px] border border-[#1c3c63]">Observación</th>
+                <th className="py-2.5 px-2 text-center w-9 border-r border-white/15">#</th>
+                <th className="py-2.5 px-3 min-w-[180px] border-r border-white/15">Estudiante</th>
+                <th className="py-2.5 px-2 text-center w-24 hidden sm:table-cell border-r border-white/15">D.N.I.</th>
+                <th className="py-2.5 px-2 text-center min-w-[155px] border-r border-white/15">Marca</th>
+                <th className="py-2.5 px-2.5 min-w-[160px]">Observación</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-[#E4E9F0]">
               {filteredStudents.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-slate-500 italic">
@@ -632,45 +608,45 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
                   return (
                     <tr
                       key={student.id}
-                      className={`hover:bg-slate-50 transition-colors ${
+                      className={`transition-colors ${
                         entry.status === 'ausente'
-                          ? 'bg-rose-50/70'
+                          ? 'bg-rose-50/60'
                           : entry.status === 'tardanza'
-                          ? 'bg-amber-50/70'
+                          ? 'bg-amber-50/50'
                           : entry.status === 'justificado'
-                          ? 'bg-sky-50/70'
-                          : idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'
+                          ? 'bg-slate-50'
+                          : idx % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'
                       }`}
                     >
-                      <td className="py-2 px-2 text-center font-bold text-slate-500 border-r border-slate-200 text-xs">
+                      <td className="py-2 px-2 text-center font-school-mono text-slate-500 border-r border-[#E4E9F0] text-xs">
                         {idx + 1}
                       </td>
 
-                      <td className="py-2 px-3 border-r border-slate-200">
-                        <div className="font-bold text-slate-900 text-xs sm:text-sm">
+                      <td className="py-2 px-3 border-r border-[#E4E9F0]">
+                        <div className="font-semibold text-slate-900 text-xs sm:text-sm">
                           {student.lastName}, {student.firstName}
                         </div>
                         {isTeacher && isMorningAbsent && (
-                          <div className="text-[10px] text-rose-700 font-bold mt-0.5">
+                          <div className="text-[10px] text-[#B91C1C] font-semibold mt-0.5">
                             Preceptoría: Ausente en entrada
                           </div>
                         )}
                       </td>
 
-                      <td className="py-2 px-2 text-center font-mono text-xs text-slate-600 hidden sm:table-cell border-r border-slate-200">
+                      <td className="py-2 px-2 text-center font-school-mono text-xs text-slate-600 hidden sm:table-cell border-r border-[#E4E9F0]">
                         {student.dni}
                       </td>
 
-                      {/* State buttons with comfortable mobile touch zone */}
-                      <td className="py-2 px-2 text-center border-r border-slate-200">
-                        <div className="inline-flex items-center gap-1 bg-slate-100 p-0.5 rounded border border-slate-300">
+                      {/* Segmented Status Buttons */}
+                      <td className="py-2 px-2 text-center border-r border-[#E4E9F0]">
+                        <div className="inline-flex items-center gap-0.5 bg-white p-0.5 rounded-md border border-[#D5DCE6]">
                           <button
                             type="button"
                             onClick={() => handleSetStudentStatus(student.id, 'presente')}
-                            className={`w-7 h-7 rounded text-xs font-black transition-all cursor-pointer flex items-center justify-center ${
+                            className={`w-7 h-7 rounded text-xs font-school-mono font-bold transition-colors cursor-pointer flex items-center justify-center ${
                               entry.status === 'presente'
-                                ? 'bg-[#24693d] text-white shadow ring-2 ring-emerald-500'
-                                : 'text-slate-600 hover:text-emerald-700'
+                                ? 'bg-emerald-700 text-white'
+                                : 'text-slate-500 hover:text-emerald-800 hover:bg-emerald-50'
                             }`}
                             title="Presente"
                           >
@@ -680,10 +656,10 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
                           <button
                             type="button"
                             onClick={() => handleSetStudentStatus(student.id, 'ausente')}
-                            className={`w-7 h-7 rounded text-xs font-black transition-all cursor-pointer flex items-center justify-center ${
+                            className={`w-7 h-7 rounded text-xs font-school-mono font-bold transition-colors cursor-pointer flex items-center justify-center ${
                               entry.status === 'ausente'
-                                ? 'bg-rose-600 text-white shadow ring-2 ring-rose-500'
-                                : 'text-slate-600 hover:text-rose-700'
+                                ? 'bg-[#B91C1C] text-white'
+                                : 'text-slate-500 hover:text-[#B91C1C] hover:bg-rose-50'
                             }`}
                             title="Ausente"
                           >
@@ -693,10 +669,10 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
                           <button
                             type="button"
                             onClick={() => handleSetStudentStatus(student.id, 'justificado')}
-                            className={`w-7 h-7 rounded text-xs font-black transition-all cursor-pointer flex items-center justify-center ${
+                            className={`w-7 h-7 rounded text-xs font-school-mono font-bold transition-colors cursor-pointer flex items-center justify-center ${
                               entry.status === 'justificado'
-                                ? 'bg-sky-600 text-white shadow ring-2 ring-sky-500'
-                                : 'text-slate-600 hover:text-sky-700'
+                                ? 'bg-[#0F294A] text-white'
+                                : 'text-slate-500 hover:text-[#0F294A] hover:bg-slate-100'
                             }`}
                             title="Justificado"
                           >
@@ -706,10 +682,10 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
                           <button
                             type="button"
                             onClick={() => handleSetStudentStatus(student.id, 'tardanza')}
-                            className={`w-7 h-7 rounded text-xs font-black transition-all cursor-pointer flex items-center justify-center ${
+                            className={`w-7 h-7 rounded text-xs font-school-mono font-bold transition-colors cursor-pointer flex items-center justify-center ${
                               entry.status === 'tardanza'
-                                ? 'bg-amber-600 text-white shadow ring-2 ring-amber-500'
-                                : 'text-slate-600 hover:text-amber-700'
+                                ? 'bg-amber-600 text-white'
+                                : 'text-slate-500 hover:text-amber-700 hover:bg-amber-50'
                             }`}
                             title="Tardanza"
                           >
@@ -732,7 +708,7 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
                           }
                           value={entry.observation}
                           onChange={e => handleSetStudentObservation(student.id, e.target.value)}
-                          className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600"
+                          className="w-full h-8 bg-white border border-[#D5DCE6] rounded px-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0F294A]"
                         />
                       </td>
                     </tr>
@@ -744,16 +720,16 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
         </div>
 
         {/* Footer Action */}
-        <div className="p-3 bg-slate-100 border-t border-slate-300 flex items-center justify-between">
+        <div className="p-3 bg-[#F8FAFC] border-t border-[#E4E9F0] flex items-center justify-between gap-3">
           <span className="text-[11px] text-slate-600 truncate">
-            {currentUser.name} ({isTeacher ? 'Profesor/a' : 'Preceptor/a'})
+            Responsable: <strong className="text-slate-900">{currentUser.name}</strong> ({isTeacher ? 'Profesor/a' : 'Preceptor/a'})
           </span>
 
           <button
             type="button"
             disabled={isSaving}
             onClick={handleSaveAttendance}
-            className="bg-[#24693d] hover:bg-[#1c5531] disabled:opacity-60 text-white font-bold px-4 py-1.5 rounded text-xs shadow-xs cursor-pointer border border-emerald-800 active:scale-95"
+            className="bg-[#B91C1C] hover:bg-[#991B1B] disabled:opacity-60 text-white font-semibold px-4 py-2 rounded-md text-xs cursor-pointer transition-colors shrink-0"
           >
             {isSaving ? 'Guardando...' : 'Guardar Asistencias'}
           </button>
