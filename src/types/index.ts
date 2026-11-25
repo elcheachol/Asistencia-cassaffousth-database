@@ -74,7 +74,7 @@ export interface StudentMonthlySummary {
   tardanzas: number;
   totalFaltasComputadas: number; // ausentes + justificados + (tardanzas * 0.5)
   porcentajeAsistencia: number;
-  alertaFaltas: 'normal' | 'advertencia' | 'critico'; // >=18 advertencia, >=25 libre (I.P.E.T. N° 247)
+  alertaFaltas: 'normal' | 'advertencia' | 'critico'; // >=5 advertencia (avisos cada 5 faltas), >=25 libre (I.P.E.T. N° 247)
   dailyStatus: Record<number, AttendanceStatus | undefined>; // day of month (1..31) -> status
 }
 

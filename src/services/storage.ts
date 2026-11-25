@@ -289,7 +289,7 @@ export function calculateMonthlyReport(
     let alertaFaltas: 'normal' | 'advertencia' | 'critico' = 'normal';
     if (totalFaltasComputadas >= 25) {
       alertaFaltas = 'critico';
-    } else if (totalFaltasComputadas >= 18) {
+    } else if (totalFaltasComputadas >= 5) {
       alertaFaltas = 'advertencia';
     }
 

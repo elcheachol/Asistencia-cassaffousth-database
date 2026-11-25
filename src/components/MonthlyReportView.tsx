@@ -80,6 +80,7 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
   );
   const [selectedStudentDetail, setSelectedStudentDetail] = useState<StudentMonthlySummary | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [conditionFilter, setConditionFilter] = useState<'all' | 'regular' | 'advertencia' | 'critico'>('all');
 
   // Available subjects for selected course based on role
   const subjects = useMemo(() => {
@@ -132,11 +133,16 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
 
   const { studentsSummary, schoolDaysWithData, totalClasses } = reportData;
 
-  // Filter summaries by student name/DNI without accents
+  // Filter summaries by student name/DNI (without accents) and selected regularity condition
   const displayedSummaries = useMemo(() => {
-    if (!searchTerm.trim()) return studentsSummary;
-    return studentsSummary.filter(s => studentMatchesQuery(s.student, searchTerm));
-  }, [studentsSummary, searchTerm]);
+    return studentsSummary.filter((s) => {
+      if (conditionFilter === 'regular' && s.alertaFaltas !== 'normal') return false;
+      if (conditionFilter === 'advertencia' && s.alertaFaltas !== 'advertencia') return false;
+      if (conditionFilter === 'critico' && s.alertaFaltas !== 'critico') return false;
+      if (searchTerm.trim() && !studentMatchesQuery(s.student, searchTerm)) return false;
+      return true;
+    });
+  }, [studentsSummary, searchTerm, conditionFilter]);
 
   const overallStats = useMemo(() => {
     const totalStudents = studentsSummary.length;
@@ -369,81 +375,113 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
             </div>
           </div>
 
-          {/* Right 5 cols: Asymmetric Regularity Ledger Summary */}
-          <div className="lg:col-span-5 bg-[#F8FAFC] p-4 sm:p-5 flex flex-col justify-between gap-4">
-            <div className="flex items-baseline justify-between gap-4">
-              <div>
-                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                  Presentismo del Curso
-                </div>
-                <div className="mt-1 flex items-baseline gap-2.5">
-                  <span className="text-3xl sm:text-4xl font-bold font-school-mono tabular-nums text-[#0F294A] leading-none">
-                    {overallStats.avgAttendance}%
+          {/* Right 5 cols: Natural Course Overview & Interactive Regularity Ledger */}
+          <div className="lg:col-span-5 bg-[#FAFBFD] p-4 sm:p-5 flex flex-col justify-between gap-3.5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h2 className="font-school-serif text-lg font-bold text-[#0F294A] leading-snug truncate">
+                  {currentCourse?.name || 'Curso seleccionado'}
+                </h2>
+                <p className="text-xs text-slate-600 mt-0.5 flex flex-wrap items-center gap-x-1.5">
+                  <span>Turno {currentCourse?.turn || 'Mañana'}</span>
+                  <span aria-hidden="true">·</span>
+                  <span className="font-school-mono">
+                    {totalClasses} {totalClasses === 1 ? 'jornada' : 'jornadas'}
                   </span>
-                  <span className="text-xs text-slate-600">
-                    promedio mensual
+                  <span aria-hidden="true">·</span>
+                  <span className="font-school-mono">
+                    {overallStats.totalStudents} {overallStats.totalStudents === 1 ? 'alumno' : 'alumnos'}
                   </span>
-                </div>
+                </p>
               </div>
 
               <div className="text-right shrink-0">
-                <div className="text-lg font-bold font-school-mono tabular-nums text-slate-900 leading-none">
-                  {totalClasses}
+                <div className="text-2xl sm:text-[28px] font-bold font-school-mono text-[#0F294A] leading-none">
+                  {overallStats.avgAttendance}%
                 </div>
-                <div className="text-[11px] text-slate-500 mt-1">
-                  {totalClasses === 1 ? 'jornada registrada' : 'jornadas registradas'}
+                <div className="text-[11px] font-medium text-slate-500 mt-1">
+                  Presentismo
                 </div>
               </div>
             </div>
 
-            {/* Attendance rate bar + quiet course context */}
-            <div className="space-y-1.5">
-              <progress
-                value={Math.max(0, Math.min(100, overallStats.avgAttendance))}
-                max={100}
-                aria-label="Porcentaje de presentismo del curso"
-                className="block w-full h-2 rounded-full overflow-hidden appearance-none bg-[#E4E9F0] [&::-webkit-progress-bar]:bg-[#E4E9F0] [&::-webkit-progress-value]:bg-[#0F294A] [&::-webkit-progress-value]:transition-all [&::-moz-progress-bar]:bg-[#0F294A]"
-              />
-              <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                <span className="font-semibold text-slate-800">
-                  {currentCourse?.name || 'Curso'}
-                </span>
-                <span aria-hidden="true">·</span>
-                <span>Turno {currentCourse?.turn || 'Mañana'}</span>
-                <span aria-hidden="true">·</span>
-                <span className="font-school-mono tabular-nums">
-                  {overallStats.totalStudents} alumnos evaluados
-                </span>
-              </div>
-            </div>
+            <div className="border-t border-[#E4E9F0] pt-1.5 divide-y divide-[#EAEFF5]">
+              {[
+                {
+                  key: 'regular' as const,
+                  label: 'Regulares',
+                  rule: 'Menos de 5 faltas',
+                  count: overallStats.regularCount,
+                  barColor: 'bg-[#0F294A]',
+                  countColor: overallStats.regularCount > 0 ? 'text-[#0F294A]' : 'text-slate-400',
+                },
+                {
+                  key: 'advertencia' as const,
+                  label: 'En aviso',
+                  rule: 'Cada 5 faltas (5, 10, 15, 20)',
+                  count: overallStats.warningCount,
+                  barColor: 'bg-amber-600',
+                  countColor: overallStats.warningCount > 0 ? 'text-amber-700' : 'text-slate-400',
+                },
+                {
+                  key: 'critico' as const,
+                  label: 'Condición libre',
+                  rule: '25 o más faltas',
+                  count: overallStats.criticalCount,
+                  barColor: 'bg-[#B91C1C]',
+                  countColor: overallStats.criticalCount > 0 ? 'text-[#B91C1C]' : 'text-slate-400',
+                },
+              ].map((item) => {
+                const isSelected = conditionFilter === item.key;
+                const ratio =
+                  overallStats.totalStudents > 0
+                    ? Math.round((item.count / overallStats.totalStudents) * 100)
+                    : 0;
 
-            {/* Hairline Regularity Distribution Ledger */}
-            <dl className="pt-3 border-t border-[#E4E9F0] grid grid-cols-3 divide-x divide-[#E4E9F0] text-left">
-              <div className="pr-3">
-                <dt className="text-[11px] font-medium text-slate-600 truncate">
-                  Regulares
-                </dt>
-                <dd className="mt-0.5 text-base font-bold font-school-mono tabular-nums text-emerald-700">
-                  {overallStats.regularCount}
-                </dd>
-              </div>
-              <div className="px-3">
-                <dt className="text-[11px] font-medium text-slate-600 truncate">
-                  Aviso (18–24)
-                </dt>
-                <dd className="mt-0.5 text-base font-bold font-school-mono tabular-nums text-amber-700">
-                  {overallStats.warningCount}
-                </dd>
-              </div>
-              <div className="pl-3">
-                <dt className="text-[11px] font-medium text-slate-600 truncate">
-                  Libres (≥25)
-                </dt>
-                <dd className="mt-0.5 text-base font-bold font-school-mono tabular-nums text-[#B91C1C]">
-                  {overallStats.criticalCount}
-                </dd>
-              </div>
-            </dl>
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() =>
+                      setConditionFilter((prev) => (prev === item.key ? 'all' : item.key))
+                    }
+                    aria-pressed={isSelected}
+                    className={`w-full py-2 px-2 rounded flex items-center justify-between gap-3 text-left transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#0F294A]/[0.06]'
+                        : 'hover:bg-white'
+                    }`}
+                    title={`Filtrar alumnos: ${item.label}`}
+                  >
+                    <div className="min-w-0 flex items-baseline gap-2">
+                      <span className="text-xs font-semibold text-slate-800 whitespace-nowrap">
+                        {item.label}
+                      </span>
+                      <span className="text-[11px] text-slate-500 truncate">
+                        {item.rule}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div
+                        aria-hidden="true"
+                        className="hidden sm:block w-20 h-1.5 rounded-full bg-[#E4E9F0] overflow-hidden"
+                      >
+                        <div
+                          className={`h-full rounded-full transition-all duration-200 ${
+                            item.count > 0 ? item.barColor : 'bg-transparent'
+                          }`}
+                          style={{ width: `${ratio}%` }}
+                        />
+                      </div>
+                      <span className={`w-6 text-right text-xs font-bold font-school-mono ${item.countColor}`}>
+                        {item.count}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>
@@ -484,6 +522,15 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
             <span className="text-xs text-slate-500 font-school-mono font-semibold hidden md:inline">
               {displayedSummaries.length} / {studentsSummary.length}
             </span>
+            {conditionFilter !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setConditionFilter('all')}
+                className="text-xs font-semibold text-[#B91C1C] hover:underline cursor-pointer whitespace-nowrap"
+              >
+                Ver todos
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-700 font-semibold self-end sm:self-auto">
@@ -650,7 +697,10 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
                           {alertaFaltas === 'critico'
                             ? 'Libre (≥25)'
                             : alertaFaltas === 'advertencia'
-                            ? 'Advertencia'
+                            ? (() => {
+                                const avisoNum = Math.max(1, Math.floor(totalFaltasComputadas / 5));
+                                return `${avisoNum}° Aviso (${avisoNum * 5})`;
+                              })()
                             : 'Regular'}
                         </span>
                       </td>
@@ -751,7 +801,13 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
                     {selectedStudentDetail.alertaFaltas === 'critico'
                       ? 'Condición Libre (≥ 25 faltas)'
                       : selectedStudentDetail.alertaFaltas === 'advertencia'
-                      ? 'Advertencia preventiva'
+                      ? (() => {
+                          const avisoNum = Math.max(
+                            1,
+                            Math.floor(selectedStudentDetail.totalFaltasComputadas / 5)
+                          );
+                          return `${avisoNum}° Aviso (${avisoNum * 5} faltas — avisos cada 5)`;
+                        })()
                       : 'Regular'}
                   </span>
                 </div>
