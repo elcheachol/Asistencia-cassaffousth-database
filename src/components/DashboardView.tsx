@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Calendar,
   CheckCircle2,
@@ -12,12 +12,21 @@ import {
 import { UserProfile, Course, Subject } from '../types';
 import {
   getCourses,
-  getSubjects,
   getAvailableCoursesForUser,
   getAvailableSubjectsForUser,
   getAllAttendanceSheets,
   getStudents,
 } from '../services/storage';
+
+type YearFilter = 'all' | '1' | '2' | '3';
+
+function getCourseYearLevel(courseName: string): '1' | '2' | '3' | 'other' {
+  const trimmed = courseName.trim();
+  if (/^1[°º]?\b|^1er\b/i.test(trimmed)) return '1';
+  if (/^2[°º]?\b|^2do\b/i.test(trimmed)) return '2';
+  if (/^3[°º]?\b|^3er\b/i.test(trimmed)) return '3';
+  return 'other';
+}
 
 interface DashboardViewProps {
   currentUser: UserProfile;
@@ -42,6 +51,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const courses = useMemo(() => getCourses(), []);
   const allSheets = useMemo(() => getAllAttendanceSheets(), []);
   const allStudents = useMemo(() => getStudents(), []);
+  const [selectedYearFilter, setSelectedYearFilter] = useState<YearFilter>('all');
 
   const todayStr = useMemo(() => {
     const today = new Date();
@@ -182,6 +192,41 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     () => allSheets.filter(s => s.date === todayStr).length,
     [allSheets, todayStr]
   );
+
+  const yearFilterOptions = useMemo(() => {
+    const sourceNames = isAdmin
+      ? adminCourseCards.map(c => c.courseName)
+      : todayStatusCards.map(c => c.courseName);
+
+    const countByYear: Record<'1' | '2' | '3', number> = { '1': 0, '2': 0, '3': 0 };
+    sourceNames.forEach(name => {
+      const level = getCourseYearLevel(name);
+      if (level === '1' || level === '2' || level === '3') {
+        countByYear[level]++;
+      }
+    });
+
+    return [
+      { key: 'all' as const, label: 'Todos', count: sourceNames.length },
+      { key: '1' as const, label: '1° Año', count: countByYear['1'] },
+      { key: '2' as const, label: '2° Año', count: countByYear['2'] },
+      { key: '3' as const, label: '3° Año', count: countByYear['3'] },
+    ];
+  }, [isAdmin, adminCourseCards, todayStatusCards]);
+
+  const filteredAdminCourseCards = useMemo(() => {
+    if (selectedYearFilter === 'all') return adminCourseCards;
+    return adminCourseCards.filter(
+      c => getCourseYearLevel(c.courseName) === selectedYearFilter
+    );
+  }, [adminCourseCards, selectedYearFilter]);
+
+  const filteredTodayStatusCards = useMemo(() => {
+    if (selectedYearFilter === 'all') return todayStatusCards;
+    return todayStatusCards.filter(
+      c => getCourseYearLevel(c.courseName) === selectedYearFilter
+    );
+  }, [todayStatusCards, selectedYearFilter]);
 
   return (
     <div className="space-y-5">
@@ -332,56 +377,101 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           )}
         </div>
 
+        {/* Year Filter Bar */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <div
+            role="group"
+            aria-label="Filtrar cursos por año"
+            className="inline-flex flex-wrap items-center gap-1 p-1 bg-[#F3F5F8] rounded-md border border-[#D5DCE6]"
+          >
+            {yearFilterOptions.map(opt => {
+              const active = selectedYearFilter === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setSelectedYearFilter(opt.key)}
+                  aria-pressed={active}
+                  className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+                    active
+                      ? 'bg-[#0F294A] text-white'
+                      : 'text-slate-700 hover:text-[#0F294A] hover:bg-white/70'
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                  <span
+                    className={`font-school-mono text-[11px] ${
+                      active ? 'text-slate-200' : 'text-slate-500'
+                    }`}
+                  >
+                    {opt.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Clean Institutional Grid */}
         {isAdmin ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {adminCourseCards.map((course) => (
-              <div
-                key={course.courseId}
-                onClick={() => onOpenTakeAttendance(course.courseId)}
-                className="p-4 rounded-md border border-[#D5DCE6] bg-white hover:border-[#0F294A] transition-colors cursor-pointer flex flex-col justify-between group"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2 text-xs mb-1.5">
-                    <span className="font-semibold text-[#0F294A]">
-                      Turno {course.turn}
-                    </span>
-                    <span className="text-[11px] font-school-mono text-slate-500">
-                      {course.totalStudents} {course.totalStudents === 1 ? 'alumno' : 'alumnos'}
-                    </span>
+          filteredAdminCourseCards.length === 0 ? (
+            <div className="py-10 text-center text-xs text-slate-500 border border-dashed border-[#D5DCE6] rounded-md">
+              No hay cursos registrados en el año seleccionado.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {filteredAdminCourseCards.map((course) => (
+                <div
+                  key={course.courseId}
+                  onClick={() => onOpenTakeAttendance(course.courseId)}
+                  className="p-4 rounded-md border border-[#D5DCE6] bg-white hover:border-[#0F294A] transition-colors cursor-pointer flex flex-col justify-between group"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 text-xs mb-1.5">
+                      <span className="font-semibold text-[#0F294A]">
+                        Turno {course.turn}
+                      </span>
+                      <span className="text-[11px] font-school-mono text-slate-500">
+                        {course.totalStudents} {course.totalStudents === 1 ? 'alumno' : 'alumnos'}
+                      </span>
+                    </div>
+
+                    <h3 className="font-school-serif font-bold text-base text-slate-900 leading-snug group-hover:text-[#0F294A] transition-colors">
+                      {course.courseName}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {course.specialty}
+                    </p>
                   </div>
 
-                  <h3 className="font-school-serif font-bold text-base text-slate-900 leading-snug group-hover:text-[#0F294A] transition-colors">
-                    {course.courseName}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    {course.specialty}
-                  </p>
-                </div>
+                  <div className="mt-3.5 pt-2.5 border-t border-[#E4E9F0] flex items-center justify-between text-xs">
+                    {course.todaySheetsCount > 0 ? (
+                      <span className="text-[#0F294A] font-medium text-[11px] font-school-mono">
+                        {course.todaySheetsCount}{' '}
+                        {course.todaySheetsCount === 1 ? 'registro hoy' : 'registros hoy'}
+                      </span>
+                    ) : (
+                      <span className="text-slate-500 text-[11px]">
+                        Sin registros hoy
+                      </span>
+                    )}
 
-                <div className="mt-3.5 pt-2.5 border-t border-[#E4E9F0] flex items-center justify-between text-xs">
-                  {course.todaySheetsCount > 0 ? (
-                    <span className="text-[#0F294A] font-medium text-[11px] font-school-mono">
-                      {course.todaySheetsCount}{' '}
-                      {course.todaySheetsCount === 1 ? 'registro hoy' : 'registros hoy'}
+                    <span className="text-[#0F294A] group-hover:text-[#B91C1C] font-semibold text-[11px] flex items-center gap-0.5 transition-colors">
+                      <span>Cargar / Editar</span>
+                      <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                     </span>
-                  ) : (
-                    <span className="text-slate-500 text-[11px]">
-                      Sin registros hoy
-                    </span>
-                  )}
-
-                  <span className="text-[#0F294A] group-hover:text-[#B91C1C] font-semibold text-[11px] flex items-center gap-0.5 transition-colors">
-                    <span>Cargar / Editar</span>
-                    <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                  </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          )
+        ) : filteredTodayStatusCards.length === 0 ? (
+          <div className="py-10 text-center text-xs text-slate-500 border border-dashed border-[#D5DCE6] rounded-md">
+            No hay cursos ni cátedras registradas en el año seleccionado.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {todayStatusCards.map((item, idx) => {
+            {filteredTodayStatusCards.map((item, idx) => {
               const isCompleted = item.status === 'completed';
 
               return (
