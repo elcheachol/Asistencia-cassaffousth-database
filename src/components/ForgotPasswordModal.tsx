@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import React, { useEffect, useState } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -9,13 +8,12 @@ import {
   Loader2,
   Lock,
   Mail,
+  RefreshCw,
   Send,
 } from 'lucide-react';
-import { auth, gmailRecoveryProvider } from '../lib/firebase';
 import {
   apiConfirmGmailPasswordReset,
   apiRequestGmailPasswordReset,
-  setSuppressFirebaseAuthListener,
 } from '../services/api';
 
 interface ForgotPasswordModalProps {
@@ -25,7 +23,7 @@ interface ForgotPasswordModalProps {
   onPasswordChanged: (email: string) => void;
 }
 
-type RecoveryStep = 'verify_gmail' | 'confirm_send' | 'enter_code';
+type RecoveryStep = 'enter_email' | 'enter_code';
 
 export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
   isOpen,
@@ -33,13 +31,9 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
   onClose,
   onPasswordChanged,
 }) => {
-  const [step, setStep] = useState<RecoveryStep>('verify_gmail');
+  const [step, setStep] = useState<RecoveryStep>('enter_email');
   const [emailInput, setEmailInput] = useState(initialEmail);
-  const [verifiedEmail, setVerifiedEmail] = useState('');
-
-  // Held strictly in React memory for the explicit send confirmation step
-  const [pendingFirebaseIdToken, setPendingFirebaseIdToken] = useState<string | null>(null);
-  const [pendingGmailAccessToken, setPendingGmailAccessToken] = useState<string | null>(null);
+  const [targetEmail, setTargetEmail] = useState('');
 
   const [codeInput, setCodeInput] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -47,111 +41,89 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [infoMsg, setInfoMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setStep('enter_email');
+      setEmailInput(initialEmail);
+      setTargetEmail('');
+      setCodeInput('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setShowPassword(false);
+      setErrorMsg(null);
+      setInfoMsg(null);
+    }
+  }, [isOpen, initialEmail]);
 
   if (!isOpen) return null;
 
   const resetAndClose = () => {
-    if (isLoading) return;
-    setPendingFirebaseIdToken(null);
-    setPendingGmailAccessToken(null);
+    if (isLoading || isResending) return;
     setCodeInput('');
     setNewPassword('');
     setConfirmPassword('');
-    setVerifiedEmail('');
+    setTargetEmail('');
     setErrorMsg(null);
-    setStep('verify_gmail');
+    setInfoMsg(null);
+    setStep('enter_email');
     onClose();
   };
 
-  const handleVerifyGmail = async () => {
+  const handleRequestResetCode = async (e: React.FormEvent) => {
+    e.preventDefault();
     setErrorMsg(null);
-    setIsLoading(true);
-    setSuppressFirebaseAuthListener(true);
+    setInfoMsg(null);
 
-    try {
-      const result = await signInWithPopup(auth, gmailRecoveryProvider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const accessToken = credential?.accessToken;
-      const idToken = await result.user.getIdToken();
-      const googleEmail = (result.user.email || '').trim().toLowerCase();
-
-      // Immediately sign out from Firebase Auth so we don't trigger session login
-      await signOut(auth).catch(() => {});
-
-      if (!googleEmail || !accessToken || !idToken) {
-        throw new Error(
-          'No se obtuvo autorización completa de Gmail. Intente nuevamente aceptando el permiso de envío.'
-        );
-      }
-
-      if (emailInput.trim() && emailInput.trim().toLowerCase() !== googleEmail) {
-        throw new Error(
-          `El correo ingresado (${emailInput.trim()}) no coincide con la cuenta de Gmail verificada (${googleEmail}).`
-        );
-      }
-
-      setVerifiedEmail(googleEmail);
-      setEmailInput(googleEmail);
-      setPendingFirebaseIdToken(idToken);
-      setPendingGmailAccessToken(accessToken);
-      setStep('confirm_send');
-    } catch (err: unknown) {
-      await signOut(auth).catch(() => {});
-      setPendingFirebaseIdToken(null);
-      setPendingGmailAccessToken(null);
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'No se pudo verificar su cuenta de Gmail.';
-      if (message.includes('popup-closed-by-user')) {
-        setErrorMsg('Se cerró la ventana de Google antes de completar la verificación.');
-      } else {
-        setErrorMsg(message);
-      }
-    } finally {
-      setSuppressFirebaseAuthListener(false);
-      setIsLoading(false);
-    }
-  };
-
-  const handleConfirmSendEmail = async () => {
-    if (!pendingFirebaseIdToken || !pendingGmailAccessToken) {
-      setStep('verify_gmail');
-      setErrorMsg('La autorización venció. Vuelva a verificar su cuenta de Gmail.');
+    const normalized = emailInput.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+      setErrorMsg('Ingrese el correo electrónico con el que está registrado.');
       return;
     }
 
-    setErrorMsg(null);
     setIsLoading(true);
     try {
-      await apiRequestGmailPasswordReset({
-        firebaseIdToken: pendingFirebaseIdToken,
-        gmailAccessToken: pendingGmailAccessToken,
-        email: verifiedEmail,
-      });
-
-      // Clear OAuth tokens from memory immediately once sent
-      setPendingFirebaseIdToken(null);
-      setPendingGmailAccessToken(null);
+      const result = await apiRequestGmailPasswordReset({ email: normalized });
+      setTargetEmail(result.email);
       setStep('enter_code');
     } catch (err: unknown) {
       setErrorMsg(
         err instanceof Error
           ? err.message
-          : 'No se pudo enviar el código de verificación por Gmail.'
+          : 'No se pudo enviar el código de recuperación a su correo.'
       );
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleResendCode = async () => {
+    if (!targetEmail) return;
+    setErrorMsg(null);
+    setInfoMsg(null);
+    setIsResending(true);
+    try {
+      await apiRequestGmailPasswordReset({ email: targetEmail });
+      setInfoMsg(`Reenviamos un nuevo código de 6 dígitos a ${targetEmail}.`);
+    } catch (err: unknown) {
+      setErrorMsg(
+        err instanceof Error ? err.message : 'No se pudo reenviar el código de verificación.'
+      );
+    } finally {
+      setIsResending(false);
+    }
+  };
+
   const handleConfirmPasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setInfoMsg(null);
 
     if (!/^\d{6}$/.test(codeInput.trim())) {
-      setErrorMsg('Ingrese el código de 6 dígitos que recibió en su Gmail.');
+      setErrorMsg('Ingrese el código de 6 dígitos que recibió en su correo.');
       return;
     }
     if (newPassword.length < 6) {
@@ -165,19 +137,17 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
 
     setIsLoading(true);
     try {
+      const recoveredEmail = targetEmail || emailInput.trim().toLowerCase();
       await apiConfirmGmailPasswordReset({
-        email: verifiedEmail || emailInput.trim(),
+        email: recoveredEmail,
         code: codeInput.trim(),
         newPassword,
       });
 
-      const recoveredEmail = verifiedEmail || emailInput.trim();
-      setPendingFirebaseIdToken(null);
-      setPendingGmailAccessToken(null);
       setCodeInput('');
       setNewPassword('');
       setConfirmPassword('');
-      setStep('verify_gmail');
+      setStep('enter_email');
       onPasswordChanged(recoveredEmail);
     } catch (err: unknown) {
       setErrorMsg(
@@ -200,7 +170,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
           <button
             type="button"
             onClick={resetAndClose}
-            disabled={isLoading}
+            disabled={isLoading || isResending}
             className="absolute top-3.5 right-3.5 text-slate-400 hover:text-slate-900 p-1 rounded font-bold cursor-pointer disabled:opacity-50"
             aria-label="Cerrar"
           >
@@ -213,24 +183,25 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
           </div>
 
           <h3 className="text-lg font-bold font-school-serif text-[#0F294A] mb-2">
-            Cambiar contraseña mediante Gmail
+            Cambiar contraseña por correo
           </h3>
 
-          {step === 'verify_gmail' && (
-            <div className="space-y-4">
+          {step === 'enter_email' && (
+            <form onSubmit={handleRequestResetCode} className="space-y-4">
               <p className="text-xs text-slate-600 leading-relaxed">
-                Para proteger su cuenta institucional, verifique su identidad con la misma cuenta de{' '}
-                <strong className="text-slate-900">Gmail</strong> con la que se registró para recibir un código de 6 dígitos en su bandeja de entrada.
+                Ingresá el correo electrónico asociado a tu cuenta del I.P.E.T. N° 247. Te enviaremos un código único de 6 dígitos para restablecer tu contraseña.
               </p>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Correo registrado (Gmail)
+                  Correo electrónico registrado
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
                   <input
                     type="email"
+                    required
+                    autoFocus
                     placeholder="Ej: usuario@gmail.com"
                     value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)}
@@ -246,63 +217,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 </div>
               )}
 
-              <button
-                type="button"
-                disabled={isLoading}
-                onClick={handleVerifyGmail}
-                className="w-full py-2.5 px-4 rounded-md font-semibold text-xs text-slate-800 bg-white hover:bg-slate-50 disabled:opacity-60 transition-colors flex items-center justify-center gap-2.5 cursor-pointer border border-[#D5DCE6]"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin text-[#0F294A]" />
-                    <span>Verificando Gmail...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 48 48" aria-hidden="true">
-                      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-                      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-                      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-                      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-                    </svg>
-                    <span>Verificar cuenta con Gmail</span>
-                  </>
-                )}
-              </button>
-
-              <div className="pt-2 border-t border-[#E4E9F0] flex justify-end">
-                <button
-                  type="button"
-                  onClick={resetAndClose}
-                  className="px-3 py-1.5 rounded-md text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          )}
-
-          {step === 'confirm_send' && (
-            <div className="space-y-4">
-              <div className="p-3.5 rounded-md bg-[#F8FAFC] border border-[#D5DCE6] border-l-4 border-l-[#0F294A] text-xs text-slate-700 space-y-1.5">
-                <div className="font-bold text-[#0F294A] flex items-center gap-1.5">
-                  <Send className="w-4 h-4 text-[#0F294A] shrink-0" />
-                  <span>Confirmar envío por Gmail</span>
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Se enviará un correo desde su cuenta de Gmail a{' '}
-                  <strong className="text-slate-900">{verifiedEmail}</strong> con un código único de 6 dígitos para cambiar su contraseña.
-                </p>
-              </div>
-
-              {errorMsg && (
-                <div className="p-3 rounded-md bg-rose-50 border border-rose-300 text-xs text-[#B91C1C] flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{errorMsg}</span>
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E4E9F0]">
+              <div className="pt-2 border-t border-[#E4E9F0] flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={resetAndClose}
@@ -312,25 +227,24 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                   Cancelar
                 </button>
                 <button
-                  type="button"
+                  type="submit"
                   disabled={isLoading}
-                  onClick={handleConfirmSendEmail}
                   className="bg-[#0F294A] hover:bg-[#0A1D37] disabled:opacity-60 text-white font-semibold px-4 py-2 rounded-md text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
                 >
                   {isLoading ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Enviando...</span>
+                      <span>Enviando código...</span>
                     </>
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      <span>Enviar código a mi Gmail</span>
+                      <span>Enviar código a mi correo</span>
                     </>
                   )}
                 </button>
               </div>
-            </div>
+            </form>
           )}
 
           {step === 'enter_code' && (
@@ -338,19 +252,31 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
               <div className="p-3 rounded-md bg-emerald-50 border border-emerald-300 text-xs text-emerald-950 flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
                 <span>
-                  Enviamos un código de 6 dígitos a <strong>{verifiedEmail}</strong>. Revise su bandeja de entrada en Gmail e ingréselo aquí.
+                  Enviamos un código de 6 dígitos a <strong>{targetEmail}</strong>. Revisá tu bandeja de entrada o spam e ingresalo aquí.
                 </span>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Código recibido en Gmail (6 dígitos)
-                </label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Código recibido (6 dígitos)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleResendCode}
+                    disabled={isLoading || isResending}
+                    className="text-[11px] font-semibold text-[#0F294A] hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isResending ? 'animate-spin' : ''}`} />
+                    <span>{isResending ? 'Reenviando...' : 'Reenviar código'}</span>
+                  </button>
+                </div>
                 <input
                   type="text"
                   inputMode="numeric"
                   maxLength={6}
                   required
+                  autoFocus
                   placeholder="Ej: 482910"
                   value={codeInput}
                   onChange={(e) => setCodeInput(e.target.value.replace(/\D/g, ''))}
@@ -401,6 +327,12 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 />
               </div>
 
+              {infoMsg && (
+                <div className="p-2.5 rounded-md bg-blue-50 border border-blue-200 text-xs text-[#0F294A]">
+                  {infoMsg}
+                </div>
+              )}
+
               {errorMsg && (
                 <div className="p-3 rounded-md bg-rose-50 border border-rose-300 text-xs text-[#B91C1C] flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -412,14 +344,14 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 <button
                   type="button"
                   onClick={resetAndClose}
-                  disabled={isLoading}
+                  disabled={isLoading || isResending}
                   className="px-3.5 py-2 rounded-md text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || isResending}
                   className="bg-[#0F294A] hover:bg-[#0A1D37] disabled:opacity-60 text-white font-semibold px-4 py-2 rounded-md text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
                 >
                   {isLoading ? (

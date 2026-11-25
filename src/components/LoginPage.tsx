@@ -22,8 +22,10 @@ import { auth, googleAuthProvider } from '../lib/firebase';
 import {
   apiGoogleSync,
   apiLogin,
+  apiSendRegistrationGmailCode,
   fetchBootstrap,
   setInMemorySessionToken,
+  setSuppressFirebaseAuthListener,
   type BootstrapPayload,
 } from '../services/api';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
@@ -117,15 +119,39 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       return;
     }
 
-    setPendingRegistration({
-      authProvider: 'password',
-      email: emailInput.trim(),
-      password: passwordInput,
-      name: nameInput.trim(),
-      role: selectedRole === 'preceptor' ? 'preceptor' : 'profesor',
-      turn: turnInput,
-    });
-    setIsVerifyRegisterOpen(true);
+    const resolvedRole: 'profesor' | 'preceptor' =
+      selectedRole === 'preceptor' ? 'preceptor' : 'profesor';
+    const normalizedEmail = emailInput.trim().toLowerCase();
+
+    setIsLoading(true);
+    try {
+      const sentResult = await apiSendRegistrationGmailCode({
+        authProvider: 'password',
+        email: normalizedEmail,
+        password: passwordInput,
+        name: nameInput.trim(),
+        role: resolvedRole,
+        turn: turnInput,
+      });
+
+      setPendingRegistration({
+        authProvider: 'password',
+        email: sentResult.email,
+        password: passwordInput,
+        name: nameInput.trim(),
+        role: resolvedRole,
+        turn: turnInput,
+      });
+      setIsVerifyRegisterOpen(true);
+    } catch (err: unknown) {
+      setErrorMsg(
+        err instanceof Error
+          ? err.message
+          : 'No se pudo enviar el código de verificación a tu correo.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleGoogleAuth = async () => {
@@ -133,14 +159,62 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setSuccessMsg(null);
 
     if (authMode === 'register') {
-      setPendingRegistration({
-        authProvider: 'google',
-        email: emailInput.trim(),
-        name: nameInput.trim(),
-        role: selectedRole === 'preceptor' ? 'preceptor' : 'profesor',
-        turn: turnInput,
-      });
-      setIsVerifyRegisterOpen(true);
+      setIsLoading(true);
+      setInMemorySessionToken(null);
+      setSuppressFirebaseAuthListener(true);
+
+      try {
+        const result = await signInWithPopup(auth, googleAuthProvider);
+        const idToken = await result.user.getIdToken();
+        const googleEmail = (result.user.email || '').trim().toLowerCase();
+        const googleDisplayName = (result.user.displayName || '').trim();
+
+        await signOut(auth).catch(() => {});
+
+        if (!googleEmail || !idToken) {
+          throw new Error('No se pudo obtener el correo verificado de Google.');
+        }
+
+        const resolvedRole: 'profesor' | 'preceptor' =
+          selectedRole === 'preceptor' ? 'preceptor' : 'profesor';
+        const resolvedName =
+          nameInput.trim() ||
+          googleDisplayName ||
+          googleEmail.split('@')[0] ||
+          (resolvedRole === 'preceptor' ? 'Preceptor I.P.E.T. N° 247' : 'Profesor I.P.E.T. N° 247');
+
+        const sentResult = await apiSendRegistrationGmailCode({
+          authProvider: 'google',
+          firebaseIdToken: idToken,
+          name: resolvedName,
+          role: resolvedRole,
+          turn: turnInput,
+        });
+
+        setPendingRegistration({
+          authProvider: 'google',
+          email: sentResult.email,
+          name: resolvedName,
+          role: resolvedRole,
+          turn: turnInput,
+          firebaseIdToken: idToken,
+        });
+        setIsVerifyRegisterOpen(true);
+      } catch (err: unknown) {
+        await signOut(auth).catch(() => {});
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'No se pudo iniciar el registro con Google.';
+        if (message.includes('popup-closed-by-user')) {
+          setErrorMsg('Se cerró la ventana de acceso con Google antes de completar el registro.');
+        } else {
+          setErrorMsg(message);
+        }
+      } finally {
+        setSuppressFirebaseAuthListener(false);
+        setIsLoading(false);
+      }
       return;
     }
 
@@ -222,7 +296,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               <p className="text-xs text-slate-300 leading-relaxed">
                 {authMode === 'login'
                   ? 'Acceda con sus credenciales registradas para gestionar asistencias de sus cursos, cátedras y planillas mensuales.'
-                  : 'Complete sus datos, verifique su identidad mediante un código enviado a su Gmail y aguarde la aprobación del Administrador.'}
+                  : 'Complete sus datos, verifique su identidad mediante un código enviado a su correo y aguarde la aprobación del Administrador.'}
               </p>
             </div>
 
@@ -389,7 +463,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     className="w-full py-2 px-4 rounded-md font-semibold text-xs text-[#B91C1C] bg-rose-50/60 hover:bg-rose-50 disabled:opacity-60 transition-colors flex items-center justify-center gap-2 cursor-pointer border border-rose-200"
                   >
                     <Mail className="w-3.5 h-3.5 text-[#B91C1C]" />
-                    <span>Cambiar contraseña olvidada mediante Gmail</span>
+                    <span>Cambiar contraseña olvidada por correo</span>
                   </button>
 
                   <p className="text-[11px] text-slate-600 text-center pt-1">
@@ -562,11 +636,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     disabled={isLoading}
                     className="w-full py-2.5 px-4 rounded-md font-semibold text-xs sm:text-sm text-white bg-[#B91C1C] hover:bg-[#991B1B] disabled:opacity-60 transition-colors flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <UserPlus className="w-4 h-4" />
-                    <span>
-                      Verificar Gmail y solicitar alta ({selectedRole === 'profesor' ? 'Profesor' : 'Preceptor'})
-                    </span>
-                    <ArrowRight className="w-4 h-4" />
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Enviando código de verificación...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-4 h-4" />
+                        <span>
+                          Verificar correo y solicitar alta ({selectedRole === 'profesor' ? 'Profesor' : 'Preceptor'})
+                        </span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
                   </button>
 
                   <button
@@ -583,7 +666,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             </div>
 
             <div className="mt-6 pt-3.5 border-t border-[#E4E9F0] text-[11px] text-slate-600">
-              <strong className="text-[#0F294A]">Privacidad institucional:</strong> Todo nuevo registro valida su identidad por Gmail y requiere aprobación del Administrador del I.P.E.T. N° 247.
+              <strong className="text-[#0F294A]">Privacidad institucional:</strong> Todo nuevo registro valida su identidad por correo electrónico y requiere aprobación del Administrador del I.P.E.T. N° 247.
             </div>
           </div>
         </div>

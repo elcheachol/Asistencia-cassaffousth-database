@@ -108,8 +108,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function apiSendRegistrationGmailCode(input: {
-  firebaseIdToken: string;
-  gmailAccessToken: string;
+  firebaseIdToken?: string;
   authProvider: 'password' | 'google';
   email?: string;
   password?: string;
@@ -117,14 +116,17 @@ export async function apiSendRegistrationGmailCode(input: {
   role: UserRole;
   turn: 'Mañana' | 'Tarde';
 }): Promise<{ sent: boolean; email: string; expiresInMinutes: number }> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (input.firebaseIdToken) {
+    headers.Authorization = `Bearer ${input.firebaseIdToken}`;
+  }
+
   const response = await fetch('/api/auth/register/send-code', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${input.firebaseIdToken}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({
-      gmailAccessToken: input.gmailAccessToken,
       authProvider: input.authProvider,
       email: input.email,
       password: input.password,
@@ -139,7 +141,7 @@ export async function apiSendRegistrationGmailCode(input: {
     const message =
       data && typeof data.error === 'string'
         ? data.error
-        : `Error ${response.status} al enviar el código de verificación por Gmail.`;
+        : `Error ${response.status} al enviar el código de verificación.`;
     throw new Error(message);
   }
   return data as { sent: boolean; email: string; expiresInMinutes: number };
@@ -148,7 +150,6 @@ export async function apiSendRegistrationGmailCode(input: {
 export function apiVerifyRegistrationGmailCode(input: {
   email: string;
   code: string;
-  gmailAccessToken?: string;
 }): Promise<{
   verified: boolean;
   pendingApproval: boolean;
@@ -191,32 +192,10 @@ export function apiGoogleSync(payload?: {
   });
 }
 
-export async function apiRequestGmailPasswordReset(input: {
-  firebaseIdToken: string;
-  gmailAccessToken: string;
-  email?: string;
+export function apiRequestGmailPasswordReset(input: {
+  email: string;
 }): Promise<{ sent: boolean; email: string; expiresInMinutes: number }> {
-  const response = await fetch('/api/auth/password-reset/request', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${input.firebaseIdToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      gmailAccessToken: input.gmailAccessToken,
-      email: input.email,
-    }),
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const message =
-      data && typeof data.error === 'string'
-        ? data.error
-        : `Error ${response.status} al enviar el correo por Gmail.`;
-    throw new Error(message);
-  }
-  return data as { sent: boolean; email: string; expiresInMinutes: number };
+  return publicPost('/api/auth/password-reset/request', { email: input.email });
 }
 
 export function apiConfirmGmailPasswordReset(input: {

@@ -19,14 +19,13 @@ import {
   listRegistrationRequests,
   mapDbUserToProfile,
   recordLoginEvent,
-  registerGoogleUser,
-  registerPasswordUser,
   rejectRegistrationRequest,
   updateUserProfile,
   upsertPendingEmailRegistrationRequest,
   verifyAndConsumePasswordResetCode,
   verifyRegistrationEmailCode,
 } from './src/db/users.ts';
+import { escapeHtml, sendInstitutionalEmail } from './src/lib/mailer.ts';
 import {
   hashPassword,
   hashResetCode,
@@ -75,37 +74,6 @@ function getConfiguredAdminCredentials(): { email: string; password: string; nam
   return { email, password, name };
 }
 
-async function sendGmailMimeMessage(input: {
-  accessToken: string;
-  to: string;
-  subject: string;
-  bodyText: string;
-}): Promise<boolean> {
-  const encodedSubject = `=?UTF-8?B?${Buffer.from(input.subject, 'utf8').toString('base64')}?=`;
-  const rawMime = [
-    `To: ${input.to}`,
-    `Subject: ${encodedSubject}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset="UTF-8"',
-    '',
-    input.bodyText,
-  ].join('\r\n');
-
-  const rawBase64Url = Buffer.from(rawMime, 'utf8').toString('base64url');
-  const response = await fetch(
-    'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${input.accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ raw: rawBase64Url }),
-    }
-  );
-  return response.ok;
-}
-
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '2mb' }));
@@ -115,50 +83,43 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'ipet247-asistencias-api' });
 });
 
-// Step 1 of Registration: Verify Gmail ownership and send 6-digit verification code via Gmail API
+// Step 1 of Registration: Send 6-digit identity verification code from server email service
 app.post('/api/auth/register/send-code', async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Falta la verificación de Google.' });
-    }
-    const firebaseIdToken = authHeader.split('Bearer ')[1];
-    const {
-      gmailAccessToken,
-      authProvider,
-      email,
-      password,
-      name,
-      role,
-      turn,
-    } = req.body ?? {};
+    const { authProvider, email, password, name, role, turn } = req.body ?? {};
 
-    if (typeof gmailAccessToken !== 'string' || !gmailAccessToken.trim()) {
-      return res.status(400).json({
-        error: 'Se requiere autorización de Gmail para enviar el código de verificación de identidad.',
-      });
-    }
+    const resolvedProvider: 'password' | 'google' =
+      authProvider === 'google' ? 'google' : 'password';
 
-    const decodedToken = await adminAuth.verifyIdToken(firebaseIdToken);
-    if (!decodedToken.email || decodedToken.email_verified === false) {
-      return res.status(403).json({
-        error: 'La cuenta de Google seleccionada no tiene un correo verificado.',
-      });
-    }
+    let verifiedEmail = '';
+    let googleUid: string | null = null;
 
-    const verifiedGmail = decodedToken.email.trim().toLowerCase();
-    if (
-      typeof email === 'string' &&
-      email.trim() &&
-      email.trim().toLowerCase() !== verifiedGmail
-    ) {
-      return res.status(403).json({
-        error: `El correo ingresado (${email.trim()}) debe coincidir con la cuenta de Gmail verificada (${verifiedGmail}).`,
-      });
+    if (resolvedProvider === 'google') {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Falta la verificación de cuenta con Google.' });
+      }
+      const firebaseIdToken = authHeader.split('Bearer ')[1];
+      const decodedToken = await adminAuth.verifyIdToken(firebaseIdToken);
+      if (!decodedToken.email || decodedToken.email_verified === false) {
+        return res.status(403).json({
+          error: 'La cuenta de Google seleccionada no tiene un correo verificado.',
+        });
+      }
+      verifiedEmail = decodedToken.email.trim().toLowerCase();
+      googleUid = decodedToken.uid;
+    } else {
+      if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        return res.status(400).json({ error: 'Ingrese un correo electrónico válido.' });
+      }
+      if (typeof password !== 'string' || password.length < 6) {
+        return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+      }
+      verifiedEmail = email.trim().toLowerCase();
     }
 
     const configuredAdmin = getConfiguredAdminCredentials();
-    if (configuredAdmin && verifiedGmail === configuredAdmin.email) {
+    if (configuredAdmin && verifiedEmail === configuredAdmin.email) {
       return res.status(409).json({
         error: 'Este correo ya está reservado. Ingrese en la pestaña Iniciar sesión.',
       });
@@ -170,27 +131,19 @@ app.post('/api/auth/register/send-code', async (req, res) => {
     if (!VALID_ROLES.has(role)) {
       return res.status(400).json({ error: 'Seleccione un rol válido (Profesor o Preceptor).' });
     }
-    const resolvedProvider: 'password' | 'google' =
-      authProvider === 'google' ? 'google' : 'password';
-
-    if (resolvedProvider === 'password') {
-      if (typeof password !== 'string' || password.length < 6) {
-        return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
-      }
-    }
 
     const resolvedTurn: 'Mañana' | 'Tarde' = turn === 'Tarde' ? 'Tarde' : 'Mañana';
-    const existingActiveUser = await getUserByEmail(verifiedGmail);
+    const existingActiveUser = await getUserByEmail(verifiedEmail);
     if (existingActiveUser) {
       return res.status(409).json({
         error: 'Ya existe una cuenta activa registrada con ese correo. Ingrese en la pestaña Iniciar sesión.',
       });
     }
 
-    const existingRequest = await getLatestRegistrationRequestByEmail(verifiedGmail);
+    const existingRequest = await getLatestRegistrationRequestByEmail(verifiedEmail);
     if (existingRequest && existingRequest.status === 'pending_approval') {
       return res.status(409).json({
-        error: 'Ya verificaste tu Gmail y tu solicitud está pendiente de aprobación por el Administrador.',
+        error: 'Ya verificaste tu correo y tu solicitud está pendiente de aprobación por el Administrador.',
       });
     }
 
@@ -208,8 +161,8 @@ app.post('/api/auth/register/send-code', async (req, res) => {
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     const requestId = await upsertPendingEmailRegistrationRequest({
-      uid: resolvedProvider === 'google' ? decodedToken.uid : null,
-      email: verifiedGmail,
+      uid: googleUid,
+      email: verifiedEmail,
       passwordHash,
       authProvider: resolvedProvider,
       name: name.trim(),
@@ -222,55 +175,71 @@ app.post('/api/auth/register/send-code', async (req, res) => {
     });
 
     const roleLabel = resolvedRole === 'preceptor' ? 'Preceptoría' : 'Profesor / Cátedra';
-    const sent = await sendGmailMimeMessage({
-      accessToken: gmailAccessToken,
-      to: verifiedGmail,
-      subject: 'I.P.E.T. N° 247 - Código de verificación de registro',
-      bodyText: [
-        `Hola ${name.trim()},`,
-        '',
-        'Recibimos tu solicitud de registro en el Sistema de Asistencias del I.P.E.T. N° 247.',
-        `Rol solicitado: ${roleLabel} (Turno ${resolvedTurn})`,
-        '',
-        `Tu código de verificación de identidad es: ${code}`,
-        '',
-        'Este código vence en 15 minutos y puede usarse una sola vez.',
-        'Una vez ingresado el código, tu solicitud será enviada al Administrador para su aprobación.',
-        '',
-        'I.P.E.T. N° 247 "Ing. Carlos A. Cassaffousth"',
-      ].join('\r\n'),
-    });
+    const safeName = escapeHtml(name.trim());
 
-    if (!sent) {
-      await invalidatePendingRegistrationRequestById(requestId);
-      return res.status(502).json({
-        error: 'Gmail rechazó el envío del código de verificación. Verifique haber otorgado permiso de envío e intente nuevamente.',
+    try {
+      await sendInstitutionalEmail({
+        to: verifiedEmail,
+        subject: 'I.P.E.T. N° 247 - Código de verificación de registro',
+        text: [
+          `Hola ${name.trim()},`,
+          '',
+          'Recibimos tu solicitud de registro en el Sistema de Asistencias del I.P.E.T. N° 247.',
+          `Rol solicitado: ${roleLabel} (Turno ${resolvedTurn})`,
+          '',
+          `Tu código de verificación de identidad es: ${code}`,
+          '',
+          'Este código vence en 15 minutos y puede usarse una sola vez.',
+          'Una vez ingresado el código, tu solicitud será enviada al Administrador para su aprobación.',
+          '',
+          'I.P.E.T. N° 247 "Ing. Carlos A. Cassaffousth"',
+        ].join('\r\n'),
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; border: 1px solid #D5DCE6; border-radius: 8px; overflow: hidden;">
+            <div style="height: 6px; background: linear-gradient(90deg, #0F294A 75%, #B91C1C 25%);"></div>
+            <div style="padding: 24px; color: #1E293B;">
+              <p style="font-size: 12px; font-weight: bold; color: #B91C1C; margin: 0 0 6px;">I.P.E.T. N° 247 · Sistema de Asistencias</p>
+              <h2 style="font-size: 18px; color: #0F294A; margin: 0 0 14px;">Verificación de identidad</h2>
+              <p style="font-size: 14px; line-height: 1.5; margin: 0 0 12px;">Hola <strong>${safeName}</strong>,</p>
+              <p style="font-size: 14px; line-height: 1.5; margin: 0 0 16px;">Recibimos tu solicitud de registro como <strong>${roleLabel}</strong> (Turno ${resolvedTurn}). Ingresá este código en la pantalla de registro:</p>
+              <div style="background: #F3F5F8; border: 1px solid #D5DCE6; border-radius: 6px; padding: 14px; text-align: center; font-size: 26px; font-weight: bold; letter-spacing: 6px; color: #0F294A; margin-bottom: 16px;">${code}</div>
+              <p style="font-size: 12px; color: #475569; margin: 0;">Este código vence en 15 minutos. Luego de validarlo, tu solicitud quedará pendiente de aprobación por el Administrador.</p>
+            </div>
+          </div>
+        `,
       });
+    } catch (mailError) {
+      await invalidatePendingRegistrationRequestById(requestId);
+      const message =
+        mailError instanceof Error
+          ? mailError.message
+          : 'No se pudo enviar el código de verificación a su correo.';
+      return res.status(502).json({ error: message });
     }
 
     return res.json({
       sent: true,
-      email: verifiedGmail,
+      email: verifiedEmail,
       expiresInMinutes: 15,
     });
   } catch (error) {
     console.error('POST /api/auth/register/send-code failed:', error);
     return res.status(500).json({
-      error: 'No se pudo enviar el código de verificación mediante Gmail.',
+      error: 'No se pudo procesar el envío del código de verificación.',
     });
   }
 });
 
-// Step 2 of Registration: Verify 6-digit Gmail code and queue request for Admin approval
+// Step 2 of Registration: Verify 6-digit email code and notify Administrator
 app.post('/api/auth/register/verify-code', async (req, res) => {
   try {
-    const { email, code, gmailAccessToken } = req.body ?? {};
+    const { email, code } = req.body ?? {};
 
     if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       return res.status(400).json({ error: 'Ingrese un correo electrónico válido.' });
     }
     if (typeof code !== 'string' || !/^\d{6}$/.test(code.trim())) {
-      return res.status(400).json({ error: 'Ingrese el código de 6 dígitos enviado a su Gmail.' });
+      return res.status(400).json({ error: 'Ingrese el código de 6 dígitos enviado a su correo.' });
     }
 
     const result = await verifyRegistrationEmailCode({
@@ -281,7 +250,7 @@ app.post('/api/auth/register/verify-code', async (req, res) => {
     if (!result.ok) {
       if (result.reason === 'too_many_attempts') {
         return res.status(429).json({
-          error: 'Demasiados intentos fallidos. Solicite un nuevo código de verificación por Gmail.',
+          error: 'Demasiados intentos fallidos. Solicite un nuevo código de verificación.',
         });
       }
       if (result.reason === 'already_verified') {
@@ -291,30 +260,27 @@ app.post('/api/auth/register/verify-code', async (req, res) => {
       }
       if (result.reason === 'not_found') {
         return res.status(400).json({
-          error: 'El código venció o no existe. Solicite un nuevo código mediante Gmail.',
+          error: 'El código venció o no existe. Solicite un nuevo código de verificación.',
         });
       }
       return res.status(400).json({
-        error: 'El código ingresado es incorrecto. Revise su bandeja de Gmail.',
+        error: 'El código ingresado es incorrecto. Revise su bandeja de entrada.',
       });
     }
 
-    // Optional secondary email alert to Administration (in-app DB notification is always created)
+    // Secondary email alert to Administration via server mailer (in-app DB notification is always created)
     let adminNotifiedByEmail = false;
     const configuredAdmin = getConfiguredAdminCredentials();
-    if (
-      configuredAdmin &&
-      typeof gmailAccessToken === 'string' &&
-      gmailAccessToken.trim()
-    ) {
+    if (configuredAdmin) {
       try {
         const reqInfo = result.request;
         const roleLabel = reqInfo.role === 'preceptor' ? 'Preceptoría' : 'Profesor / Cátedra';
-        adminNotifiedByEmail = await sendGmailMimeMessage({
-          accessToken: gmailAccessToken.trim(),
+        const safeName = escapeHtml(reqInfo.name);
+        const safeEmail = escapeHtml(reqInfo.email);
+        await sendInstitutionalEmail({
           to: configuredAdmin.email,
           subject: `I.P.E.T. N° 247 - Nueva solicitud de registro (${reqInfo.name})`,
-          bodyText: [
+          text: [
             'Nueva solicitud de acceso pendiente de aprobación en el Sistema de Asistencias:',
             '',
             `Nombre y Apellido: ${reqInfo.name}`,
@@ -326,7 +292,25 @@ app.post('/api/auth/register/verify-code', async (req, res) => {
             '',
             'I.P.E.T. N° 247 "Ing. Carlos A. Cassaffousth"',
           ].join('\r\n'),
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; border: 1px solid #D5DCE6; border-radius: 8px; overflow: hidden;">
+              <div style="height: 6px; background: linear-gradient(90deg, #0F294A 75%, #B91C1C 25%);"></div>
+              <div style="padding: 24px; color: #1E293B;">
+                <p style="font-size: 12px; font-weight: bold; color: #B91C1C; margin: 0 0 6px;">I.P.E.T. N° 247 · Notificación de Administración</p>
+                <h2 style="font-size: 18px; color: #0F294A; margin: 0 0 12px;">Nueva solicitud de registro verificada</h2>
+                <p style="font-size: 13px; line-height: 1.5; margin: 0 0 12px;">Un usuario verificó su correo electrónico y aguarda su autorización para ingresar:</p>
+                <ul style="font-size: 13px; line-height: 1.7; background: #F8FAFC; border: 1px solid #D5DCE6; border-radius: 6px; padding: 12px 18px; margin: 0 0 14px;">
+                  <li><strong>Nombre:</strong> ${safeName}</li>
+                  <li><strong>Correo:</strong> ${safeEmail}</li>
+                  <li><strong>Rol:</strong> ${roleLabel}</li>
+                  <li><strong>Turno:</strong> ${reqInfo.turn}</li>
+                </ul>
+                <p style="font-size: 12px; color: #475569; margin: 0;">Ingresá al sistema como Administrador y abrí la pestaña <strong>Solicitudes</strong> para Aceptar o Declinar el registro.</p>
+              </div>
+            </div>
+          `,
         });
+        adminNotifiedByEmail = true;
       } catch {
         adminNotifiedByEmail = false;
       }
@@ -337,7 +321,7 @@ app.post('/api/auth/register/verify-code', async (req, res) => {
       pendingApproval: true,
       adminNotifiedByEmail,
       message:
-        'Identidad verificada mediante Gmail. Se notificó al Administrador para que apruebe o decline tu solicitud de registro.',
+        'Identidad verificada por correo. Se notificó al Administrador para que acepte o decline tu solicitud de registro.',
     });
   } catch (error) {
     console.error('POST /api/auth/register/verify-code failed:', error);
@@ -433,44 +417,26 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Send 6-digit password reset verification code via Gmail API
+// Send 6-digit password reset verification code via server email service
 app.post('/api/auth/password-reset/request', async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Falta la verificación de Google.' });
-    }
-    const firebaseIdToken = authHeader.split('Bearer ')[1];
-    const { gmailAccessToken, email } = req.body ?? {};
-
-    if (typeof gmailAccessToken !== 'string' || !gmailAccessToken.trim()) {
-      return res.status(400).json({
-        error: 'Se requiere autorización de Gmail para enviar el código de recuperación.',
-      });
+    const { email } = req.body ?? {};
+    if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return res.status(400).json({ error: 'Ingrese un correo electrónico válido.' });
     }
 
-    const decodedToken = await adminAuth.verifyIdToken(firebaseIdToken);
-    if (!decodedToken.email || decodedToken.email_verified === false) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const configuredAdmin = getConfiguredAdminCredentials();
+    if (configuredAdmin && normalizedEmail === configuredAdmin.email) {
       return res.status(403).json({
-        error: 'La cuenta de Google seleccionada no tiene un correo verificado.',
+        error: 'La contraseña de Administración se gestiona desde la configuración del servidor.',
       });
     }
 
-    const verifiedGmail = decodedToken.email.trim().toLowerCase();
-    if (
-      typeof email === 'string' &&
-      email.trim() &&
-      email.trim().toLowerCase() !== verifiedGmail
-    ) {
-      return res.status(403).json({
-        error: `Debe verificar con la misma cuenta de Gmail que desea recuperar (${email.trim()}).`,
-      });
-    }
-
-    const dbUser = await getUserByEmail(verifiedGmail);
+    const dbUser = await getUserByEmail(normalizedEmail);
     if (!dbUser) {
       return res.status(404).json({
-        error: `No existe ninguna cuenta registrada con ${verifiedGmail}. Regístrese en la pestaña "Registrarse".`,
+        error: `No existe ninguna cuenta activa registrada con ${normalizedEmail}.`,
       });
     }
 
@@ -478,66 +444,60 @@ app.post('/api/auth/password-reset/request', async (req, res) => {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     const resetId = await createPasswordResetCode({
       userId: dbUser.id,
-      email: verifiedGmail,
+      email: normalizedEmail,
       codeHash: hashResetCode(code),
       expiresAt,
     });
 
-    const subjectUtf8 = 'I.P.E.T. N° 247 - Código para cambiar su contraseña';
-    const encodedSubject = `=?UTF-8?B?${Buffer.from(subjectUtf8, 'utf8').toString('base64')}?=`;
-    const bodyText = [
-      `Hola ${dbUser.name},`,
-      '',
-      'Recibimos una solicitud para cambiar la contraseña de su cuenta en el Sistema de Asistencias del I.P.E.T. N° 247.',
-      '',
-      `Su código de verificación es: ${code}`,
-      '',
-      'Este código vence en 10 minutos y puede usarse una sola vez.',
-      'Si usted no solicitó este cambio, ignore este mensaje.',
-      '',
-      'I.P.E.T. N° 247 "Ing. Carlos A. Cassaffousth"',
-    ].join('\r\n');
-
-    const rawMime = [
-      `To: ${verifiedGmail}`,
-      `Subject: ${encodedSubject}`,
-      'MIME-Version: 1.0',
-      'Content-Type: text/plain; charset="UTF-8"',
-      '',
-      bodyText,
-    ].join('\r\n');
-
-    const rawBase64Url = Buffer.from(rawMime, 'utf8').toString('base64url');
-
-    const gmailResponse = await fetch(
-      'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${gmailAccessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ raw: rawBase64Url }),
-      }
-    );
-
-    if (!gmailResponse.ok) {
-      await invalidatePasswordResetCodeById(resetId);
-      return res.status(502).json({
-        error:
-          'Gmail rechazó el envío del correo de verificación. Verifique haber otorgado permiso de envío e intente nuevamente.',
+    const safeName = escapeHtml(dbUser.name);
+    try {
+      await sendInstitutionalEmail({
+        to: normalizedEmail,
+        subject: 'I.P.E.T. N° 247 - Código para cambiar su contraseña',
+        text: [
+          `Hola ${dbUser.name},`,
+          '',
+          'Recibimos una solicitud para cambiar la contraseña de su cuenta en el Sistema de Asistencias del I.P.E.T. N° 247.',
+          '',
+          `Su código de verificación es: ${code}`,
+          '',
+          'Este código vence en 10 minutos y puede usarse una sola vez.',
+          'Si usted no solicitó este cambio, ignore este mensaje.',
+          '',
+          'I.P.E.T. N° 247 "Ing. Carlos A. Cassaffousth"',
+        ].join('\r\n'),
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; border: 1px solid #D5DCE6; border-radius: 8px; overflow: hidden;">
+            <div style="height: 6px; background: linear-gradient(90deg, #0F294A 75%, #B91C1C 25%);"></div>
+            <div style="padding: 24px; color: #1E293B;">
+              <p style="font-size: 12px; font-weight: bold; color: #B91C1C; margin: 0 0 6px;">I.P.E.T. N° 247 · Recuperación de Contraseña</p>
+              <h2 style="font-size: 18px; color: #0F294A; margin: 0 0 12px;">Código de verificación</h2>
+              <p style="font-size: 14px; line-height: 1.5; margin: 0 0 12px;">Hola <strong>${safeName}</strong>,</p>
+              <p style="font-size: 14px; line-height: 1.5; margin: 0 0 16px;">Ingresá este código de 6 dígitos para actualizar tu contraseña:</p>
+              <div style="background: #F3F5F8; border: 1px solid #D5DCE6; border-radius: 6px; padding: 14px; text-align: center; font-size: 26px; font-weight: bold; letter-spacing: 6px; color: #0F294A; margin-bottom: 16px;">${code}</div>
+              <p style="font-size: 12px; color: #475569; margin: 0;">Este código vence en 10 minutos y puede usarse una sola vez.</p>
+            </div>
+          </div>
+        `,
       });
+    } catch (mailError) {
+      await invalidatePasswordResetCodeById(resetId);
+      const message =
+        mailError instanceof Error
+          ? mailError.message
+          : 'No se pudo enviar el correo de recuperación.';
+      return res.status(502).json({ error: message });
     }
 
     return res.json({
       sent: true,
-      email: verifiedGmail,
+      email: normalizedEmail,
       expiresInMinutes: 10,
     });
   } catch (error) {
     console.error('POST /api/auth/password-reset/request failed:', error);
     return res.status(500).json({
-      error: 'No se pudo enviar el código de recuperación mediante Gmail.',
+      error: 'No se pudo enviar el código de recuperación.',
     });
   }
 });
