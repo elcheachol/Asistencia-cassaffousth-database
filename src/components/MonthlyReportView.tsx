@@ -50,6 +50,7 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
   initialMonth = 11, // Defaults to November
   initialYear = 2026,
 }) => {
+  const isAdmin = currentUser.role === 'administrador';
   const isTeacher = currentUser.role === 'profesor';
 
   const courses = useMemo(() => {
@@ -300,7 +301,19 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
               onChange={e => setSelectedSubjectId(e.target.value)}
               className="w-full h-9 bg-white border border-[#D5DCE6] rounded-md px-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-[#0F294A]"
             >
-              {!isTeacher ? (
+              {isAdmin ? (
+                <>
+                  <option value="sub-general">Asistencia General (Preceptoría / Entrada)</option>
+                  <option value="all">Todas las asistencias acumuladas</option>
+                  {subjects
+                    .filter(s => s.id !== 'sub-general')
+                    .map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                </>
+              ) : !isTeacher ? (
                 <>
                   <option value="sub-general">Asistencia General (Preceptoría / Entrada)</option>
                   <option value="all">Todas las asistencias acumuladas</option>

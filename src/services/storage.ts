@@ -78,12 +78,20 @@ export function getAvailableSubjectsForUser(user: UserProfile, courseId: string)
   const all = store.subjects;
   const courseSubjects = all.filter((s) => s.courseId === courseId || s.courseId === 'all');
 
+  const generalSub = all.find((s) => s.id === 'sub-general') || {
+    id: 'sub-general',
+    name: 'Asistencia General (Preceptoría / Entrada)',
+    courseId: 'all',
+  };
+
+  if (user.role === 'administrador') {
+    const curricular = courseSubjects.filter(
+      (s) => s.id !== 'sub-general' && s.courseId !== 'all'
+    );
+    return [generalSub, ...curricular];
+  }
+
   if (user.role === 'preceptor') {
-    const generalSub = all.find((s) => s.id === 'sub-general') || {
-      id: 'sub-general',
-      name: 'Asistencia General (Preceptoría / Entrada)',
-      courseId: 'all',
-    };
     return [generalSub];
   }
 
@@ -110,7 +118,7 @@ export function getAvailableSubjectsForUser(user: UserProfile, courseId: string)
 
 export function getAvailableCoursesForUser(user: UserProfile): Course[] {
   const allCourses = store.courses;
-  if (user.role === 'preceptor') {
+  if (user.role === 'preceptor' || user.role === 'administrador') {
     return allCourses;
   }
 

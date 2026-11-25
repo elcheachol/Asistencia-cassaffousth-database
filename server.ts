@@ -8,6 +8,7 @@ import { requireAuth, type AuthRequest } from './src/middleware/auth.ts';
 import {
   createPasswordResetCode,
   deleteUserAccount,
+  ensureAdminUser,
   getUserByEmail,
   getUserByUidOrEmail,
   invalidatePasswordResetCodeById,
@@ -51,6 +52,20 @@ const VALID_STATUSES = new Set<AttendanceStatus>([
 const VALID_ROLES = new Set<UserRole>(['preceptor', 'profesor']);
 const VALID_TURNS = new Set(['Mañana', 'Tarde', 'Noche', 'Ambos']);
 
+function safeCompareSecret(a: string, b: string): boolean {
+  const hashA = crypto.createHash('sha256').update(a, 'utf8').digest();
+  const hashB = crypto.createHash('sha256').update(b, 'utf8').digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+}
+
+function getConfiguredAdminCredentials(): { email: string; password: string; name: string } | null {
+  const email = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+  const password = process.env.ADMIN_PASSWORD || '';
+  if (!email || !password) return null;
+  const name = (process.env.ADMIN_NAME || '').trim() || 'Administrador I.P.E.T. N° 247';
+  return { email, password, name };
+}
+
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '2mb' }));
@@ -80,6 +95,13 @@ app.post('/api/auth/register', async (req, res) => {
     const resolvedTurn: 'Mañana' | 'Tarde' | 'Noche' | 'Ambos' = VALID_TURNS.has(turn)
       ? turn
       : 'Mañana';
+
+    const configuredAdmin = getConfiguredAdminCredentials();
+    if (configuredAdmin && email.trim().toLowerCase() === configuredAdmin.email) {
+      return res.status(409).json({
+        error: 'Ya existe una cuenta registrada con ese correo. Ingrese en la pestaña Iniciar sesión.',
+      });
+    }
 
     const existing = await getUserByEmail(email);
     if (existing) {
@@ -124,6 +146,26 @@ app.post('/api/auth/login', async (req, res) => {
 
     if (typeof email !== 'string' || !email.trim() || typeof password !== 'string' || !password) {
       return res.status(400).json({ error: 'Ingrese su correo electrónico y contraseña.' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const configuredAdmin = getConfiguredAdminCredentials();
+    if (
+      configuredAdmin &&
+      safeCompareSecret(normalizedEmail, configuredAdmin.email) &&
+      safeCompareSecret(password, configuredAdmin.password)
+    ) {
+      const passwordHash = await hashPassword(password);
+      const adminUser = await ensureAdminUser({
+        email: configuredAdmin.email,
+        passwordHash,
+        name: configuredAdmin.name,
+      });
+      const token = signSessionToken(adminUser.uid);
+      return res.json({
+        token,
+        user: mapDbUserToProfile(adminUser),
+      });
     }
 
     const dbUser = await getUserByEmail(email);
@@ -325,6 +367,13 @@ app.post('/api/auth/google-sync', async (req, res) => {
     const email = (decodedToken.email || `${decodedToken.uid}@ipet247.edu.ar`).trim().toLowerCase();
 
     const { mode, role, turn, name } = req.body ?? {};
+    const configuredAdmin = getConfiguredAdminCredentials();
+    if (configuredAdmin && email === configuredAdmin.email) {
+      return res.status(403).json({
+        error: 'Esta cuenta requiere ingreso con correo y contraseña.',
+      });
+    }
+
     const existing = await getUserByUidOrEmail(decodedToken.uid, email);
 
     if (existing) {
@@ -588,9 +637,9 @@ app.post('/api/students', requireAuth, async (req: AuthRequest, res) => {
 
 app.delete('/api/students/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
-    if (!req.dbUser || req.dbUser.role !== 'preceptor') {
+    if (!req.dbUser || (req.dbUser.role !== 'preceptor' && req.dbUser.role !== 'administrador')) {
       return res.status(403).json({
-        error: 'Solo Preceptoría puede dar de baja alumnos del padrón institucional para preservar el historial de asistencias.',
+        error: 'Solo Preceptoría o Administración puede dar de baja alumnos del padrón institucional.',
       });
     }
     const studentId = String(req.params.id || '').trim();
@@ -643,7 +692,12 @@ app.post('/api/attendance', requireAuth, async (req: AuthRequest, res) => {
     }
 
     // Server-side institutional role enforcement (I.P.E.T. N° 247)
-    const userRole = req.dbUser.role === 'preceptor' ? 'preceptor' : 'profesor';
+    const userRole: UserRole =
+      req.dbUser.role === 'administrador'
+        ? 'administrador'
+        : req.dbUser.role === 'preceptor'
+        ? 'preceptor'
+        : 'profesor';
     if (userRole === 'preceptor' && subjectId !== 'sub-general') {
       return res.status(403).json({
         error:
@@ -717,13 +771,14 @@ app.delete('/api/attendance/:id', requireAuth, async (req: AuthRequest, res) => 
       return res.status(404).json({ error: 'Planilla no encontrada.' });
     }
 
+    const isAdmin = req.dbUser.role === 'administrador';
     const isPreceptor = req.dbUser.role === 'preceptor';
-    if (isPreceptor && existingSheet.subjectId !== 'sub-general') {
+    if (!isAdmin && isPreceptor && existingSheet.subjectId !== 'sub-general') {
       return res.status(403).json({
         error: 'Por preservación de datos, Preceptoría no puede eliminar registros de materias de profesores.',
       });
     }
-    if (!isPreceptor && existingSheet.takenByUserId !== req.dbUser.uid) {
+    if (!isAdmin && !isPreceptor && existingSheet.takenByUserId !== req.dbUser.uid) {
       return res.status(403).json({
         error: 'Solo puede anular planillas de asistencia que usted mismo haya registrado.',
       });

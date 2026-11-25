@@ -34,6 +34,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onGoToMonthlyReport,
   onGoToStudents,
 }) => {
+  const isAdmin = currentUser.role === 'administrador';
   const isTeacher = currentUser.role === 'profesor';
 
   const courses = useMemo(() => getCourses(), []);
@@ -186,7 +187,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </h1>
 
             <p className="text-xs sm:text-sm text-slate-600 max-w-2xl leading-relaxed">
-              {isTeacher ? (
+              {isAdmin ? (
+                <span>
+                  Administración Institucional: acceso completo a todos los{' '}
+                  <strong className="text-slate-900">cursos, cátedras, padrón de alumnos y planillas</strong> del establecimiento.
+                </span>
+              ) : isTeacher ? (
                 <span>
                   Registro de cátedra docente: asiente las asistencias e inasistencias en sus{' '}
                   <strong className="text-slate-900">materias y talleres técnicos asignados</strong>.
@@ -230,13 +236,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <h2 className="text-sm sm:text-base font-bold font-school-serif text-[#0F294A] flex items-center gap-2">
               <BookOpen className="w-4 h-4 text-[#B91C1C] shrink-0" />
               <span>
-                {isTeacher
+                {isAdmin
+                  ? 'Todos los Cursos del Establecimiento (Administración)'
+                  : isTeacher
                   ? 'Cátedras y Espacios Curriculares Asignados'
                   : 'Cursos del Turno (Asistencia General de Preceptoría)'}
               </span>
             </h2>
             <p className="text-xs text-slate-600 mt-0.5">
-              {isTeacher
+              {isAdmin
+                ? 'Seleccione cualquier curso para gestionar su asistencia general o por materia.'
+                : isTeacher
                 ? 'Seleccione una cátedra para cargar o revisar la lista de hoy.'
                 : 'Seleccione un curso para cargar o consultar la asistencia general del día.'}
             </p>

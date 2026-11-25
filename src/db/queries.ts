@@ -314,7 +314,12 @@ export async function getAllAttendanceSheets(filters?: {
       turn: s.turn === 'Tarde' ? 'Tarde' : 'Mañana',
       takenByUserId: s.takenByUserId,
       takenByUserName: s.takenByUserName,
-      takenByRole: s.takenByRole === 'preceptor' ? 'preceptor' : 'profesor',
+      takenByRole:
+        s.takenByRole === 'administrador'
+          ? 'administrador'
+          : s.takenByRole === 'preceptor'
+          ? 'preceptor'
+          : 'profesor',
       entries: entriesBySheet.get(s.id) ?? [],
       timestamp: s.timestamp.toISOString(),
       notes: s.notes ?? undefined,

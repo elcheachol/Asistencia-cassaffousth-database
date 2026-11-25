@@ -41,6 +41,7 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
   initialCourseId,
   initialDate,
 }) => {
+  const isAdmin = currentUser.role === 'administrador';
   const isTeacher = currentUser.role === 'profesor';
 
   const getTodayStr = () => {
@@ -269,13 +270,19 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-[#B91C1C] truncate">
-                  I.P.E.T. N° 247 · {isTeacher ? 'Módulo Profesor' : 'Módulo Preceptoría'}
+                  I.P.E.T. N° 247 · {isAdmin ? 'Módulo Administración' : isTeacher ? 'Módulo Profesor' : 'Módulo Preceptoría'}
                 </div>
                 <h1 className="text-lg sm:text-xl font-bold font-school-serif text-[#0F294A] mt-0.5 truncate">
-                  {isTeacher ? 'Asistencia de Cátedra / Taller' : 'Asistencia General de Entrada'}
+                  {isAdmin
+                    ? 'Control General y de Cátedra'
+                    : isTeacher
+                    ? 'Asistencia de Cátedra / Taller'
+                    : 'Asistencia General de Entrada'}
                 </h1>
                 <p className="text-xs text-slate-600 mt-0.5 truncate">
-                  {isTeacher ? (
+                  {isAdmin ? (
+                    <span>Administrador: <strong className="text-slate-900">{currentUser.name}</strong> · Acceso total a asistencia general y materias</span>
+                  ) : isTeacher ? (
                     <span>Docente: <strong className="text-slate-900">{currentUser.name}</strong> · Registro de materias asignadas</span>
                   ) : (
                     <span>Preceptor: <strong className="text-slate-900">{currentUser.name}</strong> · Registro diario general del curso</span>
@@ -328,7 +335,9 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
           <div className="mt-3 p-2.5 rounded-md text-xs flex items-center gap-2 bg-[#F8FAFC] border border-[#D5DCE6] border-l-4 border-l-[#0F294A] text-slate-700">
             <ShieldCheck className="w-4 h-4 text-[#0F294A] shrink-0" />
             <span>
-              {isTeacher ? (
+              {isAdmin ? (
+                <span><strong className="text-[#0F294A]">Acceso de Administrador:</strong> Puede registrar y editar tanto Asistencia General como cualquier materia o taller de 1° a 3° Año.</span>
+              ) : isTeacher ? (
                 <span><strong className="text-[#0F294A]">Restricción activa:</strong> Como profesor, usted asienta la asistencia de sus materias a cargo. La Asistencia General corresponde a Preceptoría.</span>
               ) : (
                 <span><strong className="text-[#0F294A]">Función de Preceptoría:</strong> Usted asienta la Asistencia General del curso. La asistencia de materias corresponde a los profesores.</span>
@@ -423,11 +432,11 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
             <label className="block text-xs font-semibold text-slate-800 mb-1 flex items-center justify-between">
               <span>3. Materia / Cátedra</span>
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#B91C1C]">
-                {isTeacher ? 'Profesor' : 'Preceptoría'}
+                {isAdmin ? 'Administrador' : isTeacher ? 'Profesor' : 'Preceptoría'}
               </span>
             </label>
 
-            {!isTeacher ? (
+            {!isTeacher && !isAdmin ? (
               <div className="h-9 bg-white border border-[#D5DCE6] rounded-md px-2.5 text-xs font-semibold text-[#0F294A] flex items-center justify-between">
                 <span className="truncate">Asistencia General (Preceptoría / Entrada)</span>
                 <span title="Fijado: Preceptoría solo asienta asistencia general" className="inline-flex shrink-0 ml-1">
@@ -449,7 +458,9 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
             )}
 
             <p className="text-[10px] text-slate-500 mt-1">
-              {!isTeacher
+              {isAdmin
+                ? 'Administrador: acceso a Asistencia General y todas las materias.'
+                : !isTeacher
                 ? 'Preceptor: Control de entrada general del curso.'
                 : 'Profesor: Solo se muestran sus materias asignadas.'}
             </p>
@@ -626,7 +637,7 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
                         <div className="font-semibold text-slate-900 text-xs sm:text-sm">
                           {student.lastName}, {student.firstName}
                         </div>
-                        {isTeacher && isMorningAbsent && (
+                        {(isTeacher || (isAdmin && selectedSubjectId !== 'sub-general')) && isMorningAbsent && (
                           <div className="text-[10px] text-[#B91C1C] font-semibold mt-0.5">
                             Preceptoría: Ausente en entrada
                           </div>
@@ -722,7 +733,7 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
         {/* Footer Action */}
         <div className="p-3 bg-[#F8FAFC] border-t border-[#E4E9F0] flex items-center justify-between gap-3">
           <span className="text-[11px] text-slate-600 truncate">
-            Responsable: <strong className="text-slate-900">{currentUser.name}</strong> ({isTeacher ? 'Profesor/a' : 'Preceptor/a'})
+            Responsable: <strong className="text-slate-900">{currentUser.name}</strong> ({isAdmin ? 'Administrador' : isTeacher ? 'Profesor/a' : 'Preceptor/a'})
           </span>
 
           <button

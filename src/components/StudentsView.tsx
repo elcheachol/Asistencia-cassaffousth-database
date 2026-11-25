@@ -305,11 +305,11 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
                               Tomar Asistencia
                             </button>
                           )}
-                          {currentUser.role === 'preceptor' && (
+                          {(currentUser.role === 'preceptor' || currentUser.role === 'administrador') && (
                             <button
                               type="button"
                               onClick={() => handleDelete(st)}
-                              title="Eliminar del padrón (Preceptoría)"
+                              title="Eliminar del padrón"
                               className="text-slate-400 hover:text-[#B91C1C] p-1 rounded hover:bg-rose-50 cursor-pointer transition-colors"
                             >
                               <Trash2 className="w-4 h-4" />

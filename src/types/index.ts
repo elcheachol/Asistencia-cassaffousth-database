@@ -1,6 +1,6 @@
 export type AttendanceStatus = 'presente' | 'ausente' | 'justificado' | 'tardanza';
 
-export type UserRole = 'preceptor' | 'profesor';
+export type UserRole = 'preceptor' | 'profesor' | 'administrador';
 
 export interface UserProfile {
   id: string;

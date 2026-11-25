@@ -112,6 +112,76 @@ export async function registerPasswordUser(input: {
   }
 }
 
+export async function ensureAdminUser(input: {
+  email: string;
+  passwordHash: string;
+  name: string;
+}): Promise<DbUser> {
+  try {
+    const normalizedEmail = input.email.trim().toLowerCase();
+    const now = new Date();
+    const allCourses = ['c-1a', 'c-1b', 'c-2a', 'c-2b', 'c-3a', 'c-3b'];
+
+    return await db.transaction(async (tx) => {
+      const existing = await tx
+        .select()
+        .from(users)
+        .where(eq(users.email, normalizedEmail))
+        .limit(1);
+
+      let adminUser: DbUser;
+
+      if (existing.length > 0) {
+        const updated = await tx
+          .update(users)
+          .set({
+            passwordHash: input.passwordHash,
+            authProvider: 'password',
+            role: 'administrador',
+            turn: 'Ambos',
+            assignedCourses: allCourses,
+            assignedSubjects: null,
+            lastLoginAt: now,
+          })
+          .where(eq(users.id, existing[0].id))
+          .returning();
+        adminUser = updated[0];
+      } else {
+        const inserted = await tx
+          .insert(users)
+          .values({
+            uid: `admin-${crypto.randomUUID()}`,
+            email: normalizedEmail,
+            passwordHash: input.passwordHash,
+            authProvider: 'password',
+            name: input.name.trim(),
+            role: 'administrador',
+            turn: 'Ambos',
+            assignedCourses: allCourses,
+            assignedSubjects: null,
+            lastLoginAt: now,
+          })
+          .returning();
+        adminUser = inserted[0];
+      }
+
+      await tx.insert(loginEvents).values({
+        userId: adminUser.id,
+        provider: 'password',
+        roleAtLogin: 'administrador',
+        loggedInAt: now,
+      });
+
+      return adminUser;
+    });
+  } catch (error) {
+    console.error('Database error in ensureAdminUser:', error);
+    throw new Error('No se pudo verificar la cuenta de administrador en PostgreSQL.', {
+      cause: error,
+    });
+  }
+}
+
 export async function getUserByUidOrEmail(
   uid: string,
   email: string
@@ -369,7 +439,12 @@ export function mapDbUserToProfile(dbUser: DbUser): UserProfile {
     id: dbUser.uid,
     name: dbUser.name,
     email: dbUser.email,
-    role: dbUser.role === 'preceptor' ? 'preceptor' : 'profesor',
+    role:
+      dbUser.role === 'administrador'
+        ? 'administrador'
+        : dbUser.role === 'preceptor'
+        ? 'preceptor'
+        : 'profesor',
     turn:
       dbUser.turn === 'Tarde' ||
       dbUser.turn === 'Noche' ||

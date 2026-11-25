@@ -231,7 +231,8 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
                       <span>Ver / Editar</span>
                     </button>
 
-                    {((currentUser.role === 'preceptor' && sheet.subjectId === 'sub-general') ||
+                    {(currentUser.role === 'administrador' ||
+                      (currentUser.role === 'preceptor' && sheet.subjectId === 'sub-general') ||
                       (currentUser.role === 'profesor' && sheet.takenByUserId === currentUser.id)) && (
                       <button
                         type="button"

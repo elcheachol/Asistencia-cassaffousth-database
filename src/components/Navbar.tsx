@@ -29,6 +29,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   onOpenDeleteAccount,
 }) => {
+  const isAdmin = currentUser.role === 'administrador';
   const isTeacher = currentUser.role === 'profesor';
 
   return (
@@ -54,7 +55,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Lock className="w-3 h-3 text-slate-400 shrink-0" />
               <span className="hidden sm:inline text-slate-400">Rol:</span>
               <span className="font-semibold text-white">
-                {isTeacher ? 'Profesor' : 'Preceptor'}
+                {isAdmin ? 'Administrador' : isTeacher ? 'Profesor' : 'Preceptor'}
               </span>
             </span>
 
@@ -95,7 +96,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 I.P.E.T. N° 247
               </span>
               <span className="text-[11px] text-slate-300 hidden xl:block mt-1 leading-none">
-                {isTeacher
+                {isAdmin
+                  ? 'Administración General · Control Total'
+                  : isTeacher
                   ? 'Cátedra Docente · Libro de Asistencias'
                   : 'Preceptoría · Registro Institucional'}
               </span>
