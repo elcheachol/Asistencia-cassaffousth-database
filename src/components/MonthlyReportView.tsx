@@ -2,9 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Download,
   Printer,
-  Calendar,
-  School,
-  BookOpen,
   FileDown,
   Search,
 } from 'lucide-react';
@@ -35,6 +32,21 @@ const MONTH_NAMES = [
   'Octubre',
   'Noviembre',
   'Diciembre',
+];
+
+const MONTH_SHORT_NAMES = [
+  'Ene',
+  'Feb',
+  'Mar',
+  'Abr',
+  'May',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dic',
 ];
 
 interface MonthlyReportViewProps {
@@ -129,18 +141,33 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
   const overallStats = useMemo(() => {
     const totalStudents = studentsSummary.length;
     if (totalStudents === 0) {
-      return { avgAttendance: 0, criticalCount: 0, warningCount: 0, totalAbsences: 0 };
+      return {
+        avgAttendance: 0,
+        criticalCount: 0,
+        warningCount: 0,
+        regularCount: 0,
+        totalStudents: 0,
+        totalAbsences: 0,
+      };
     }
     const sumRate = studentsSummary.reduce((acc, curr) => acc + curr.porcentajeAsistencia, 0);
     const avgAttendance = Math.round(sumRate / totalStudents);
     const criticalCount = studentsSummary.filter(s => s.alertaFaltas === 'critico').length;
     const warningCount = studentsSummary.filter(s => s.alertaFaltas === 'advertencia').length;
+    const regularCount = Math.max(0, totalStudents - criticalCount - warningCount);
     const totalAbsences = studentsSummary.reduce(
       (acc, curr) => acc + curr.totalFaltasComputadas,
       0
     );
 
-    return { avgAttendance, criticalCount, warningCount, totalAbsences };
+    return {
+      avgAttendance,
+      criticalCount,
+      warningCount,
+      regularCount,
+      totalStudents,
+      totalAbsences,
+    };
   }, [studentsSummary]);
 
   const handleExportExcel = () => {
@@ -233,105 +260,224 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
         </div>
       </div>
 
-      {/* Filter Selectors Bar */}
-      <div className="bg-white border border-[#D5DCE6] rounded-lg p-4 shadow-2xs print:hidden">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Curso */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-              <School className="w-3.5 h-3.5 text-[#0F294A]" />
-              Curso / División
-            </label>
-            <select
-              value={selectedCourseId}
-              onChange={e => setSelectedCourseId(e.target.value)}
-              className="w-full h-9 bg-white border border-[#D5DCE6] rounded-md px-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-[#0F294A]"
-            >
-              {courses.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.name} {c.specialty ? `- ${c.specialty}` : ''} ({c.turn})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Mes */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5 text-[#0F294A]" />
-              Mes a consultar
-            </label>
-            <select
-              value={selectedMonth}
-              onChange={e => setSelectedMonth(parseInt(e.target.value, 10))}
-              className="w-full h-9 bg-white border border-[#D5DCE6] rounded-md px-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-[#0F294A]"
-            >
-              {MONTH_NAMES.map((m, idx) => (
-                <option key={m} value={idx + 1}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Año */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5 text-[#0F294A]" />
-              Año Lectivo
-            </label>
-            <select
-              value={selectedYear}
-              onChange={e => setSelectedYear(parseInt(e.target.value, 10))}
-              className="w-full h-9 bg-white border border-[#D5DCE6] rounded-md px-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-[#0F294A]"
-            >
-              <option value={2026}>2026 (Actual)</option>
-              <option value={2025}>2025</option>
-            </select>
-          </div>
-
-          {/* Materia */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-              <BookOpen className="w-3.5 h-3.5 text-[#0F294A]" />
-              Materia / Cátedra
-            </label>
-            <select
-              value={selectedSubjectId}
-              onChange={e => setSelectedSubjectId(e.target.value)}
-              className="w-full h-9 bg-white border border-[#D5DCE6] rounded-md px-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-[#0F294A]"
-            >
-              {isAdmin ? (
-                <>
-                  <option value="sub-general">Asistencia General (Preceptoría / Entrada)</option>
-                  <option value="all">Todas las asistencias acumuladas</option>
-                  {subjects
-                    .filter(s => s.id !== 'sub-general')
-                    .map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                </>
-              ) : !isTeacher ? (
-                <>
-                  <option value="sub-general">Asistencia General (Preceptoría / Entrada)</option>
-                  <option value="all">Todas las asistencias acumuladas</option>
-                </>
-              ) : (
-                <>
-                  <option value="all">Todas mis materias en este curso</option>
-                  {subjects.map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
+      {/* Unified Institutional Folio Controls & Regularity Summary */}
+      <section className="bg-white border border-[#D5DCE6] rounded-lg shadow-2xs overflow-hidden print:hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-[#E4E9F0]">
+          {/* Left 7 cols: Course, Subject, Year Toggle & 12-Month Calendar Selector */}
+          <div className="lg:col-span-7 p-4 sm:p-5 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label
+                  htmlFor="report-course-select"
+                  className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5"
+                >
+                  Curso y División
+                </label>
+                <select
+                  id="report-course-select"
+                  value={selectedCourseId}
+                  onChange={e => setSelectedCourseId(e.target.value)}
+                  className="w-full h-10 bg-[#F8FAFC] hover:bg-white border border-[#D5DCE6] rounded-md px-3 text-xs text-slate-900 font-semibold focus:outline-none focus:border-[#0F294A] transition-colors"
+                >
+                  {courses.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.specialty ? `- ${c.specialty}` : ''} ({c.turn})
                     </option>
                   ))}
-                </>
-              )}
-            </select>
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="report-subject-select"
+                  className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5"
+                >
+                  Cátedra / Control
+                </label>
+                <select
+                  id="report-subject-select"
+                  value={selectedSubjectId}
+                  onChange={e => setSelectedSubjectId(e.target.value)}
+                  className="w-full h-10 bg-[#F8FAFC] hover:bg-white border border-[#D5DCE6] rounded-md px-3 text-xs text-slate-900 font-semibold focus:outline-none focus:border-[#0F294A] transition-colors"
+                >
+                  {isAdmin ? (
+                    <>
+                      <option value="sub-general">Asistencia General (Preceptoría / Entrada)</option>
+                      <option value="all">Todas las asistencias acumuladas</option>
+                      {subjects
+                        .filter(s => s.id !== 'sub-general')
+                        .map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                    </>
+                  ) : !isTeacher ? (
+                    <>
+                      <option value="sub-general">Asistencia General (Preceptoría / Entrada)</option>
+                      <option value="all">Todas las asistencias acumuladas</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="all">Todas mis materias en este curso</option>
+                      {subjects.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
+              </div>
+            </div>
+
+            {/* Period Bar: Segmented Year Switch + Direct 1-Click Month Grid */}
+            <div className="pt-3 border-t border-[#E4E9F0] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="shrink-0">
+                <span className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Ciclo Lectivo
+                </span>
+                <div
+                  role="group"
+                  aria-label="Año lectivo"
+                  className="inline-flex p-0.5 bg-[#F3F5F8] border border-[#D5DCE6] rounded-md"
+                >
+                  {[2026, 2025].map(yearOption => {
+                    const active = selectedYear === yearOption;
+                    return (
+                      <button
+                        key={yearOption}
+                        type="button"
+                        onClick={() => setSelectedYear(yearOption)}
+                        className={`px-3 py-1.5 rounded text-xs font-school-mono font-bold tabular-nums transition-colors cursor-pointer whitespace-nowrap ${
+                          active
+                            ? 'bg-[#0F294A] text-white'
+                            : 'text-slate-600 hover:text-[#0F294A]'
+                        }`}
+                      >
+                        {yearOption}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                    Período Mensual
+                  </span>
+                  <span className="text-xs font-semibold text-[#0F294A]">
+                    {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+                  </span>
+                </div>
+                <div
+                  role="group"
+                  aria-label="Mes a consultar"
+                  className="grid grid-cols-6 gap-1"
+                >
+                  {MONTH_SHORT_NAMES.map((shortLabel, idx) => {
+                    const monthNumber = idx + 1;
+                    const active = selectedMonth === monthNumber;
+                    return (
+                      <button
+                        key={shortLabel}
+                        type="button"
+                        onClick={() => setSelectedMonth(monthNumber)}
+                        title={MONTH_NAMES[idx]}
+                        className={`py-1.5 px-1 rounded text-[11px] font-semibold transition-colors cursor-pointer text-center whitespace-nowrap border ${
+                          active
+                            ? 'bg-[#B91C1C] text-white border-[#B91C1C]'
+                            : 'bg-[#F8FAFC] text-slate-700 border-[#E4E9F0] hover:border-[#0F294A] hover:text-[#0F294A]'
+                        }`}
+                      >
+                        {shortLabel}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right 5 cols: Asymmetric Regularity Ledger Summary */}
+          <div className="lg:col-span-5 bg-[#F8FAFC] p-4 sm:p-5 flex flex-col justify-between gap-4">
+            <div className="flex items-baseline justify-between gap-4">
+              <div>
+                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                  Presentismo del Curso
+                </div>
+                <div className="mt-1 flex items-baseline gap-2.5">
+                  <span className="text-3xl sm:text-4xl font-bold font-school-mono tabular-nums text-[#0F294A] leading-none">
+                    {overallStats.avgAttendance}%
+                  </span>
+                  <span className="text-xs text-slate-600">
+                    promedio mensual
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-right shrink-0">
+                <div className="text-lg font-bold font-school-mono tabular-nums text-slate-900 leading-none">
+                  {totalClasses}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1">
+                  {totalClasses === 1 ? 'jornada registrada' : 'jornadas registradas'}
+                </div>
+              </div>
+            </div>
+
+            {/* Attendance rate bar + quiet course context */}
+            <div className="space-y-1.5">
+              <progress
+                value={Math.max(0, Math.min(100, overallStats.avgAttendance))}
+                max={100}
+                aria-label="Porcentaje de presentismo del curso"
+                className="block w-full h-2 rounded-full overflow-hidden appearance-none bg-[#E4E9F0] [&::-webkit-progress-bar]:bg-[#E4E9F0] [&::-webkit-progress-value]:bg-[#0F294A] [&::-webkit-progress-value]:transition-all [&::-moz-progress-bar]:bg-[#0F294A]"
+              />
+              <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="font-semibold text-slate-800">
+                  {currentCourse?.name || 'Curso'}
+                </span>
+                <span aria-hidden="true">·</span>
+                <span>Turno {currentCourse?.turn || 'Mañana'}</span>
+                <span aria-hidden="true">·</span>
+                <span className="font-school-mono tabular-nums">
+                  {overallStats.totalStudents} alumnos evaluados
+                </span>
+              </div>
+            </div>
+
+            {/* Hairline Regularity Distribution Ledger */}
+            <dl className="pt-3 border-t border-[#E4E9F0] grid grid-cols-3 divide-x divide-[#E4E9F0] text-left">
+              <div className="pr-3">
+                <dt className="text-[11px] font-medium text-slate-600 truncate">
+                  Regulares
+                </dt>
+                <dd className="mt-0.5 text-base font-bold font-school-mono tabular-nums text-emerald-700">
+                  {overallStats.regularCount}
+                </dd>
+              </div>
+              <div className="px-3">
+                <dt className="text-[11px] font-medium text-slate-600 truncate">
+                  Aviso (18–24)
+                </dt>
+                <dd className="mt-0.5 text-base font-bold font-school-mono tabular-nums text-amber-700">
+                  {overallStats.warningCount}
+                </dd>
+              </div>
+              <div className="pl-3">
+                <dt className="text-[11px] font-medium text-slate-600 truncate">
+                  Libres (≥25)
+                </dt>
+                <dd className="mt-0.5 text-base font-bold font-school-mono tabular-nums text-[#B91C1C]">
+                  {overallStats.criticalCount}
+                </dd>
+              </div>
+            </dl>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Official Print Header */}
       <div className="hidden print:block mb-6 p-4 border-b-2 border-slate-900 text-slate-900">
@@ -349,33 +495,6 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
             <div>Curso: <strong>{currentCourse?.name} ({currentCourse?.specialty})</strong></div>
             <div>Turno: <strong>{currentCourse?.turn}</strong></div>
           </div>
-        </div>
-      </div>
-
-      {/* Indicators Strip */}
-      <div className="bg-white border border-[#D5DCE6] rounded-lg grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-[#E4E9F0] shadow-2xs overflow-hidden print:hidden">
-        <div className="p-3.5">
-          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Asistencia Promedio</div>
-          <div className="text-2xl font-bold font-school-mono text-[#0F294A] mt-0.5">{overallStats.avgAttendance}%</div>
-          <p className="text-[11px] text-slate-500 mt-0.5">Promedio general mensual</p>
-        </div>
-
-        <div className="p-3.5">
-          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Días con Clases</div>
-          <div className="text-2xl font-bold font-school-mono text-[#0F294A] mt-0.5">{totalClasses}</div>
-          <p className="text-[11px] text-slate-500 mt-0.5">Jornadas registradas en el mes</p>
-        </div>
-
-        <div className="p-3.5">
-          <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">En Advertencia (18-24)</div>
-          <div className="text-2xl font-bold font-school-mono text-amber-700 mt-0.5">{overallStats.warningCount}</div>
-          <p className="text-[11px] text-slate-500 mt-0.5">Alumnos en seguimiento</p>
-        </div>
-
-        <div className="p-3.5">
-          <div className="text-[11px] font-bold text-[#B91C1C] uppercase tracking-wider">Condición Libre (≥25)</div>
-          <div className="text-2xl font-bold font-school-mono text-[#B91C1C] mt-0.5">{overallStats.criticalCount}</div>
-          <p className="text-[11px] text-slate-500 mt-0.5">Alumnos en condición libre</p>
         </div>
       </div>
 
