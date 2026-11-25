@@ -47,6 +47,29 @@ export const passwordResetCodes = pgTable('password_reset_codes', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const registrationRequests = pgTable('registration_requests', {
+  id: serial('id').primaryKey(),
+  uid: text('uid'),
+  email: text('email').notNull(),
+  passwordHash: text('password_hash'),
+  authProvider: text('auth_provider').notNull().default('password'),
+  name: text('name').notNull(),
+  role: text('role').notNull().default('profesor'),
+  turn: text('turn').notNull().default('Mañana'),
+  assignedCourses: jsonb('assigned_courses').$type<string[]>().notNull().default([]),
+  assignedSubjects: jsonb('assigned_subjects').$type<string[] | null>(),
+  verificationCodeHash: text('verification_code_hash'),
+  verificationAttempts: integer('verification_attempts').notNull().default(0),
+  verificationExpiresAt: timestamp('verification_expires_at'),
+  emailVerifiedAt: timestamp('email_verified_at'),
+  status: text('status').notNull().default('pending_email'),
+  rejectionReason: text('rejection_reason'),
+  reviewedByUid: text('reviewed_by_uid'),
+  reviewedByName: text('reviewed_by_name'),
+  reviewedAt: timestamp('reviewed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 export const courses = pgTable('courses', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -94,6 +117,10 @@ export const attendanceSheets = pgTable(
     takenByUserId: text('taken_by_user_id').notNull(),
     takenByUserName: text('taken_by_user_name').notNull(),
     takenByRole: text('taken_by_role').notNull(),
+    lastEditedByUserId: text('last_edited_by_user_id'),
+    lastEditedByUserName: text('last_edited_by_user_name'),
+    lastEditedByRole: text('last_edited_by_role'),
+    lastEditedAt: timestamp('last_edited_at'),
     notes: text('notes'),
     timestamp: timestamp('timestamp').defaultNow().notNull(),
   },

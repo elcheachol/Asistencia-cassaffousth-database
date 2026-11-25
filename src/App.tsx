@@ -9,6 +9,7 @@ import { AlertCircle, RefreshCw } from 'lucide-react';
 import { UserProfile, AttendanceSheet } from './types';
 import { auth } from './lib/firebase';
 import {
+  apiFetchAdminRegistrationRequests,
   fetchBootstrap,
   getInMemorySessionToken,
   isFirebaseAuthListenerSuppressed,
@@ -19,7 +20,7 @@ import {
   clearStorageSession,
   hydrateStorageFromServer,
 } from './services/storage';
-import { Navbar } from './components/Navbar';
+import { Navbar, type AppTab } from './components/Navbar';
 import { LoginPage } from './components/LoginPage';
 import { DashboardView } from './components/DashboardView';
 import { TakeAttendanceView } from './components/TakeAttendanceView';
@@ -27,19 +28,20 @@ import { MonthlyReportView } from './components/MonthlyReportView';
 import { StudentsView } from './components/StudentsView';
 import { AttendanceHistoryView } from './components/AttendanceHistoryView';
 import { DeleteAccountModal } from './components/DeleteAccountModal';
+import { AdminRequestsView } from './components/AdminRequestsView';
 
 export default function App() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [currentUser, setCurrentUserState] = useState<UserProfile | null>(null);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
-  const [currentTab, setCurrentTab] = useState<
-    'dashboard' | 'take_attendance' | 'monthly_report' | 'students' | 'history'
-  >('dashboard');
+  const [currentTab, setCurrentTab] = useState<AppTab>('dashboard');
 
   // Navigation parameters for pre-filling views
   const [prefilledCourseId, setPrefilledCourseId] = useState<string | undefined>(undefined);
   const [prefilledDate, setPrefilledDate] = useState<string | undefined>(undefined);
+  const [prefilledSubjectId, setPrefilledSubjectId] = useState<string | undefined>(undefined);
   const [prefilledReportMonth, setPrefilledReportMonth] = useState<number | undefined>(undefined);
   const [prefilledReportYear, setPrefilledReportYear] = useState<number | undefined>(undefined);
   const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false);
@@ -50,6 +52,7 @@ export default function App() {
       const payload = await fetchBootstrap();
       hydrateStorageFromServer(payload);
       setCurrentUserState(payload.user);
+      setPendingRequestsCount(payload.pendingRegistrationRequestsCount ?? 0);
       setDataVersion((v) => v + 1);
     } catch (err) {
       const message =
@@ -96,9 +99,35 @@ export default function App() {
     return () => unsubscribe();
   }, [loadAuthenticatedData]);
 
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'administrador') {
+      setPendingRequestsCount(0);
+      return;
+    }
+
+    let cancelled = false;
+    const pollPendingRequests = async () => {
+      try {
+        const res = await apiFetchAdminRegistrationRequests();
+        if (!cancelled) {
+          setPendingRequestsCount(res.pendingCount);
+        }
+      } catch {
+        // Ignore transient polling errors
+      }
+    };
+
+    const intervalId = window.setInterval(pollPendingRequests, 25000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [currentUser]);
+
   const handleLoginSuccess = (payload: BootstrapPayload) => {
     hydrateStorageFromServer(payload);
     setCurrentUserState(payload.user);
+    setPendingRequestsCount(payload.pendingRegistrationRequestsCount ?? 0);
     setDataVersion((v) => v + 1);
     setLoadError(null);
     setIsInitialized(true);
@@ -112,6 +141,7 @@ export default function App() {
     } finally {
       clearStorageSession();
       setCurrentUserState(null);
+      setPendingRequestsCount(0);
       setCurrentTab('dashboard');
     }
   };
@@ -123,6 +153,7 @@ export default function App() {
   const handleOpenTakeAttendance = (courseId?: string, date?: string) => {
     setPrefilledCourseId(courseId);
     setPrefilledDate(date);
+    setPrefilledSubjectId(undefined);
     setCurrentTab('take_attendance');
   };
 
@@ -141,6 +172,7 @@ export default function App() {
   const handleEditSheetFromHistory = (sheet: AttendanceSheet) => {
     setPrefilledCourseId(sheet.courseId);
     setPrefilledDate(sheet.date);
+    setPrefilledSubjectId(sheet.subjectId);
     setCurrentTab('take_attendance');
   };
 
@@ -192,9 +224,11 @@ export default function App() {
       <Navbar
         currentUser={currentUser}
         currentTab={currentTab}
+        pendingRequestsCount={pendingRequestsCount}
         onSelectTab={(tab) => {
           setPrefilledCourseId(undefined);
           setPrefilledDate(undefined);
+          setPrefilledSubjectId(undefined);
           setCurrentTab(tab);
         }}
         onOpenTakeAttendance={() => handleOpenTakeAttendance()}
@@ -208,18 +242,21 @@ export default function App() {
           <DashboardView
             key={`dash-${dataVersion}`}
             currentUser={currentUser}
+            pendingRequestsCount={pendingRequestsCount}
             onOpenTakeAttendance={handleOpenTakeAttendance}
             onGoToMonthlyReport={handleGoToMonthlyReport}
             onGoToStudents={handleGoToStudents}
+            onGoToAdminRequests={() => setCurrentTab('admin_requests')}
           />
         )}
 
         {currentTab === 'take_attendance' && (
           <TakeAttendanceView
-            key={`take-${prefilledCourseId || 'default'}-${prefilledDate || 'today'}`}
+            key={`take-${prefilledCourseId || 'default'}-${prefilledDate || 'today'}-${prefilledSubjectId || 'def'}`}
             currentUser={currentUser}
             initialCourseId={prefilledCourseId}
             initialDate={prefilledDate}
+            initialSubjectId={prefilledSubjectId}
             onSavedSuccess={handleDataChanged}
             onGoToMonthlyReport={handleGoToMonthlyReport}
           />
@@ -249,6 +286,12 @@ export default function App() {
             key={`history-${dataVersion}`}
             currentUser={currentUser}
             onEditSheet={handleEditSheetFromHistory}
+          />
+        )}
+
+        {currentTab === 'admin_requests' && currentUser.role === 'administrador' && (
+          <AdminRequestsView
+            onPendingCountChanged={(count) => setPendingRequestsCount(count)}
           />
         )}
       </main>

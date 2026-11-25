@@ -2,6 +2,7 @@ import { auth } from '../lib/firebase';
 import type {
   AttendanceSheet,
   Course,
+  RegistrationRequest,
   Student,
   StudentMonthlySummary,
   Subject,
@@ -15,6 +16,7 @@ export interface BootstrapPayload {
   subjects: Subject[];
   students: Student[];
   attendanceSheets: AttendanceSheet[];
+  pendingRegistrationRequestsCount?: number;
 }
 
 export interface AuthResponse {
@@ -103,6 +105,57 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return (await response.json()) as T;
+}
+
+export async function apiSendRegistrationGmailCode(input: {
+  firebaseIdToken: string;
+  gmailAccessToken: string;
+  authProvider: 'password' | 'google';
+  email?: string;
+  password?: string;
+  name: string;
+  role: UserRole;
+  turn: 'Mañana' | 'Tarde';
+}): Promise<{ sent: boolean; email: string; expiresInMinutes: number }> {
+  const response = await fetch('/api/auth/register/send-code', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${input.firebaseIdToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      gmailAccessToken: input.gmailAccessToken,
+      authProvider: input.authProvider,
+      email: input.email,
+      password: input.password,
+      name: input.name,
+      role: input.role,
+      turn: input.turn,
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message =
+      data && typeof data.error === 'string'
+        ? data.error
+        : `Error ${response.status} al enviar el código de verificación por Gmail.`;
+    throw new Error(message);
+  }
+  return data as { sent: boolean; email: string; expiresInMinutes: number };
+}
+
+export function apiVerifyRegistrationGmailCode(input: {
+  email: string;
+  code: string;
+  gmailAccessToken?: string;
+}): Promise<{
+  verified: boolean;
+  pendingApproval: boolean;
+  adminNotifiedByEmail: boolean;
+  message: string;
+}> {
+  return publicPost('/api/auth/register/verify-code', input);
 }
 
 export async function apiRegister(input: {
@@ -259,3 +312,29 @@ export function apiFetchMonthlyReport(
   }
   return apiRequest(`/api/reports/monthly?${params.toString()}`, { method: 'GET' });
 }
+
+export function apiFetchAdminRegistrationRequests(): Promise<{
+  requests: RegistrationRequest[];
+  pendingCount: number;
+}> {
+  return apiRequest('/api/admin/registration-requests', { method: 'GET' });
+}
+
+export function apiApproveRegistrationRequest(
+  requestId: number
+): Promise<{ approved: boolean; request: RegistrationRequest }> {
+  return apiRequest(`/api/admin/registration-requests/${requestId}/approve`, {
+    method: 'POST',
+  });
+}
+
+export function apiRejectRegistrationRequest(
+  requestId: number,
+  reason?: string
+): Promise<{ rejected: boolean; request: RegistrationRequest }> {
+  return apiRequest(`/api/admin/registration-requests/${requestId}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+

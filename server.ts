@@ -6,18 +6,26 @@ import { fileURLToPath } from 'url';
 import { adminAuth } from './src/lib/firebase-admin.ts';
 import { requireAuth, type AuthRequest } from './src/middleware/auth.ts';
 import {
+  approveRegistrationRequest,
   createPasswordResetCode,
   deleteUserAccount,
   ensureAdminUser,
+  getLatestRegistrationRequestByEmail,
+  getPendingRegistrationRequestsCount,
   getUserByEmail,
   getUserByUidOrEmail,
   invalidatePasswordResetCodeById,
+  invalidatePendingRegistrationRequestById,
+  listRegistrationRequests,
   mapDbUserToProfile,
   recordLoginEvent,
   registerGoogleUser,
   registerPasswordUser,
+  rejectRegistrationRequest,
   updateUserProfile,
+  upsertPendingEmailRegistrationRequest,
   verifyAndConsumePasswordResetCode,
+  verifyRegistrationEmailCode,
 } from './src/db/users.ts';
 import {
   hashPassword,
@@ -34,6 +42,7 @@ import {
   getAllStudents,
   getAllSubjects,
   getAttendanceSheetById,
+  getAttendanceSheetByKey,
   getMonthlyReportFromDb,
   upsertAttendanceSheet,
 } from './src/db/queries.ts';
@@ -66,6 +75,37 @@ function getConfiguredAdminCredentials(): { email: string; password: string; nam
   return { email, password, name };
 }
 
+async function sendGmailMimeMessage(input: {
+  accessToken: string;
+  to: string;
+  subject: string;
+  bodyText: string;
+}): Promise<boolean> {
+  const encodedSubject = `=?UTF-8?B?${Buffer.from(input.subject, 'utf8').toString('base64')}?=`;
+  const rawMime = [
+    `To: ${input.to}`,
+    `Subject: ${encodedSubject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset="UTF-8"',
+    '',
+    input.bodyText,
+  ].join('\r\n');
+
+  const rawBase64Url = Buffer.from(rawMime, 'utf8').toString('base64url');
+  const response = await fetch(
+    'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${input.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ raw: rawBase64Url }),
+    }
+  );
+  return response.ok;
+}
+
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '2mb' }));
@@ -75,68 +115,241 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'ipet247-asistencias-api' });
 });
 
-// Register a persistent account (Preceptor or Profesor) in PostgreSQL
-app.post('/api/auth/register', async (req, res) => {
+// Step 1 of Registration: Verify Gmail ownership and send 6-digit verification code via Gmail API
+app.post('/api/auth/register/send-code', async (req, res) => {
   try {
-    const { email, password, name, role, turn } = req.body ?? {};
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Falta la verificación de Google.' });
+    }
+    const firebaseIdToken = authHeader.split('Bearer ')[1];
+    const {
+      gmailAccessToken,
+      authProvider,
+      email,
+      password,
+      name,
+      role,
+      turn,
+    } = req.body ?? {};
 
-    if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      return res.status(400).json({ error: 'Ingrese un correo electrónico válido.' });
+    if (typeof gmailAccessToken !== 'string' || !gmailAccessToken.trim()) {
+      return res.status(400).json({
+        error: 'Se requiere autorización de Gmail para enviar el código de verificación de identidad.',
+      });
     }
-    if (typeof password !== 'string' || password.length < 6) {
-      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+
+    const decodedToken = await adminAuth.verifyIdToken(firebaseIdToken);
+    if (!decodedToken.email || decodedToken.email_verified === false) {
+      return res.status(403).json({
+        error: 'La cuenta de Google seleccionada no tiene un correo verificado.',
+      });
     }
+
+    const verifiedGmail = decodedToken.email.trim().toLowerCase();
+    if (
+      typeof email === 'string' &&
+      email.trim() &&
+      email.trim().toLowerCase() !== verifiedGmail
+    ) {
+      return res.status(403).json({
+        error: `El correo ingresado (${email.trim()}) debe coincidir con la cuenta de Gmail verificada (${verifiedGmail}).`,
+      });
+    }
+
+    const configuredAdmin = getConfiguredAdminCredentials();
+    if (configuredAdmin && verifiedGmail === configuredAdmin.email) {
+      return res.status(409).json({
+        error: 'Este correo ya está reservado. Ingrese en la pestaña Iniciar sesión.',
+      });
+    }
+
     if (typeof name !== 'string' || name.trim().length < 2) {
       return res.status(400).json({ error: 'Ingrese su nombre y apellido completo.' });
     }
     if (!VALID_ROLES.has(role)) {
       return res.status(400).json({ error: 'Seleccione un rol válido (Profesor o Preceptor).' });
     }
-    const resolvedTurn: 'Mañana' | 'Tarde' | 'Noche' | 'Ambos' = VALID_TURNS.has(turn)
-      ? turn
-      : 'Mañana';
+    const resolvedProvider: 'password' | 'google' =
+      authProvider === 'google' ? 'google' : 'password';
 
-    const configuredAdmin = getConfiguredAdminCredentials();
-    if (configuredAdmin && email.trim().toLowerCase() === configuredAdmin.email) {
+    if (resolvedProvider === 'password') {
+      if (typeof password !== 'string' || password.length < 6) {
+        return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+      }
+    }
+
+    const resolvedTurn: 'Mañana' | 'Tarde' = turn === 'Tarde' ? 'Tarde' : 'Mañana';
+    const existingActiveUser = await getUserByEmail(verifiedGmail);
+    if (existingActiveUser) {
       return res.status(409).json({
-        error: 'Ya existe una cuenta registrada con ese correo. Ingrese en la pestaña Iniciar sesión.',
+        error: 'Ya existe una cuenta activa registrada con ese correo. Ingrese en la pestaña Iniciar sesión.',
       });
     }
 
-    const existing = await getUserByEmail(email);
-    if (existing) {
+    const existingRequest = await getLatestRegistrationRequestByEmail(verifiedGmail);
+    if (existingRequest && existingRequest.status === 'pending_approval') {
       return res.status(409).json({
-        error: 'Ya existe una cuenta registrada con ese correo. Ingrese en la pestaña Iniciar sesión.',
+        error: 'Ya verificaste tu Gmail y tu solicitud está pendiente de aprobación por el Administrador.',
       });
     }
 
-    const passwordHash = await hashPassword(password);
+    const resolvedRole: 'profesor' | 'preceptor' = role === 'preceptor' ? 'preceptor' : 'profesor';
     const assignedCourses =
-      role === 'preceptor'
+      resolvedRole === 'preceptor'
         ? ['c-1a', 'c-1b', 'c-2a', 'c-2b', 'c-3a', 'c-3b']
         : ['c-1a', 'c-2a', 'c-3a'];
     const assignedSubjects =
-      role === 'preceptor' ? null : ['sub-tall-1a', 'sub-tall-2a', 'sub-tall-3a'];
+      resolvedRole === 'preceptor' ? null : ['sub-tall-1a', 'sub-tall-2a', 'sub-tall-3a'];
 
-    const created = await registerPasswordUser({
-      email,
+    const passwordHash =
+      resolvedProvider === 'password' ? await hashPassword(password) : null;
+    const code = crypto.randomInt(100000, 1000000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    const requestId = await upsertPendingEmailRegistrationRequest({
+      uid: resolvedProvider === 'google' ? decodedToken.uid : null,
+      email: verifiedGmail,
       passwordHash,
+      authProvider: resolvedProvider,
       name: name.trim(),
-      role,
+      role: resolvedRole,
       turn: resolvedTurn,
       assignedCourses,
       assignedSubjects,
+      codeHash: hashResetCode(code),
+      expiresAt,
     });
 
-    const token = signSessionToken(created.uid);
-    return res.status(201).json({
-      token,
-      user: mapDbUserToProfile(created),
+    const roleLabel = resolvedRole === 'preceptor' ? 'Preceptoría' : 'Profesor / Cátedra';
+    const sent = await sendGmailMimeMessage({
+      accessToken: gmailAccessToken,
+      to: verifiedGmail,
+      subject: 'I.P.E.T. N° 247 - Código de verificación de registro',
+      bodyText: [
+        `Hola ${name.trim()},`,
+        '',
+        'Recibimos tu solicitud de registro en el Sistema de Asistencias del I.P.E.T. N° 247.',
+        `Rol solicitado: ${roleLabel} (Turno ${resolvedTurn})`,
+        '',
+        `Tu código de verificación de identidad es: ${code}`,
+        '',
+        'Este código vence en 15 minutos y puede usarse una sola vez.',
+        'Una vez ingresado el código, tu solicitud será enviada al Administrador para su aprobación.',
+        '',
+        'I.P.E.T. N° 247 "Ing. Carlos A. Cassaffousth"',
+      ].join('\r\n'),
+    });
+
+    if (!sent) {
+      await invalidatePendingRegistrationRequestById(requestId);
+      return res.status(502).json({
+        error: 'Gmail rechazó el envío del código de verificación. Verifique haber otorgado permiso de envío e intente nuevamente.',
+      });
+    }
+
+    return res.json({
+      sent: true,
+      email: verifiedGmail,
+      expiresInMinutes: 15,
     });
   } catch (error) {
-    console.error('POST /api/auth/register failed:', error);
-    return res.status(500).json({ error: 'No se pudo completar el registro.' });
+    console.error('POST /api/auth/register/send-code failed:', error);
+    return res.status(500).json({
+      error: 'No se pudo enviar el código de verificación mediante Gmail.',
+    });
   }
+});
+
+// Step 2 of Registration: Verify 6-digit Gmail code and queue request for Admin approval
+app.post('/api/auth/register/verify-code', async (req, res) => {
+  try {
+    const { email, code, gmailAccessToken } = req.body ?? {};
+
+    if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return res.status(400).json({ error: 'Ingrese un correo electrónico válido.' });
+    }
+    if (typeof code !== 'string' || !/^\d{6}$/.test(code.trim())) {
+      return res.status(400).json({ error: 'Ingrese el código de 6 dígitos enviado a su Gmail.' });
+    }
+
+    const result = await verifyRegistrationEmailCode({
+      email: email.trim(),
+      code: code.trim(),
+    });
+
+    if (!result.ok) {
+      if (result.reason === 'too_many_attempts') {
+        return res.status(429).json({
+          error: 'Demasiados intentos fallidos. Solicite un nuevo código de verificación por Gmail.',
+        });
+      }
+      if (result.reason === 'already_verified') {
+        return res.status(409).json({
+          error: 'Este correo ya fue verificado y tu solicitud aguarda aprobación del Administrador.',
+        });
+      }
+      if (result.reason === 'not_found') {
+        return res.status(400).json({
+          error: 'El código venció o no existe. Solicite un nuevo código mediante Gmail.',
+        });
+      }
+      return res.status(400).json({
+        error: 'El código ingresado es incorrecto. Revise su bandeja de Gmail.',
+      });
+    }
+
+    // Optional secondary email alert to Administration (in-app DB notification is always created)
+    let adminNotifiedByEmail = false;
+    const configuredAdmin = getConfiguredAdminCredentials();
+    if (
+      configuredAdmin &&
+      typeof gmailAccessToken === 'string' &&
+      gmailAccessToken.trim()
+    ) {
+      try {
+        const reqInfo = result.request;
+        const roleLabel = reqInfo.role === 'preceptor' ? 'Preceptoría' : 'Profesor / Cátedra';
+        adminNotifiedByEmail = await sendGmailMimeMessage({
+          accessToken: gmailAccessToken.trim(),
+          to: configuredAdmin.email,
+          subject: `I.P.E.T. N° 247 - Nueva solicitud de registro (${reqInfo.name})`,
+          bodyText: [
+            'Nueva solicitud de acceso pendiente de aprobación en el Sistema de Asistencias:',
+            '',
+            `Nombre y Apellido: ${reqInfo.name}`,
+            `Correo verificado: ${reqInfo.email}`,
+            `Rol solicitado: ${roleLabel}`,
+            `Turno: ${reqInfo.turn}`,
+            '',
+            'Ingresá al sistema con tu cuenta de Administrador para Aceptar o Declinar esta solicitud en el apartado "Solicitudes".',
+            '',
+            'I.P.E.T. N° 247 "Ing. Carlos A. Cassaffousth"',
+          ].join('\r\n'),
+        });
+      } catch {
+        adminNotifiedByEmail = false;
+      }
+    }
+
+    return res.status(201).json({
+      verified: true,
+      pendingApproval: true,
+      adminNotifiedByEmail,
+      message:
+        'Identidad verificada mediante Gmail. Se notificó al Administrador para que apruebe o decline tu solicitud de registro.',
+    });
+  } catch (error) {
+    console.error('POST /api/auth/register/verify-code failed:', error);
+    return res.status(500).json({ error: 'No se pudo verificar el código de registro.' });
+  }
+});
+
+// Direct unverified registration is disabled; all registrations require Gmail verification + Admin approval
+app.post('/api/auth/register', (_req, res) => {
+  return res.status(403).json({
+    error: 'El registro requiere verificación de identidad mediante Gmail y aprobación del Administrador.',
+  });
 });
 
 // Login with saved email & password from PostgreSQL
@@ -170,6 +383,29 @@ app.post('/api/auth/login', async (req, res) => {
 
     const dbUser = await getUserByEmail(email);
     if (!dbUser) {
+      const pendingReq = await getLatestRegistrationRequestByEmail(normalizedEmail);
+      if (pendingReq) {
+        if (pendingReq.status === 'pending_approval') {
+          return res.status(403).json({
+            error:
+              'Tu identidad por Gmail ya fue verificada, pero tu solicitud aún aguarda la aprobación del Administrador.',
+          });
+        }
+        if (pendingReq.status === 'rejected') {
+          const reasonSuffix = pendingReq.rejectionReason
+            ? ` Motivo: ${pendingReq.rejectionReason}`
+            : '';
+          return res.status(403).json({
+            error: `Tu solicitud de registro fue declinada por Administración.${reasonSuffix}`,
+          });
+        }
+        if (pendingReq.status === 'pending_email') {
+          return res.status(403).json({
+            error:
+              'Aún no completaste la verificación con el código enviado a tu Gmail. Volvé a la pestaña "Registrarse" para finalizar tu solicitud.',
+          });
+        }
+      }
       return res.status(401).json({ error: 'Correo o contraseña incorrectos.' });
     }
 
@@ -388,45 +624,33 @@ app.post('/api/auth/google-sync', async (req, res) => {
       return res.json(mapDbUserToProfile(existing));
     }
 
+    const pendingReq = await getLatestRegistrationRequestByEmail(email);
+    if (pendingReq) {
+      if (pendingReq.status === 'pending_approval') {
+        return res.status(403).json({
+          error:
+            'Tu identidad por Gmail ya fue verificada, pero tu solicitud de registro aún aguarda la aprobación del Administrador.',
+        });
+      }
+      if (pendingReq.status === 'rejected') {
+        const reasonSuffix = pendingReq.rejectionReason
+          ? ` Motivo: ${pendingReq.rejectionReason}`
+          : '';
+        return res.status(403).json({
+          error: `Tu solicitud de registro fue declinada por Administración.${reasonSuffix}`,
+        });
+      }
+    }
+
     if (mode !== 'register') {
       return res.status(404).json({
         error: 'Su cuenta de Google aún no está registrada en el I.P.E.T. N° 247. Regístrese por única vez en la pestaña "Registrarse".',
       });
     }
 
-    if (!VALID_ROLES.has(role)) {
-      return res.status(400).json({ error: 'Seleccione un rol válido (Profesor o Preceptor).' });
-    }
-
-    const resolvedTurn: 'Mañana' | 'Tarde' | 'Noche' | 'Ambos' = VALID_TURNS.has(turn)
-      ? turn
-      : 'Mañana';
-
-    const resolvedName =
-      typeof name === 'string' && name.trim()
-        ? name.trim()
-        : decodedToken.name?.trim() ||
-          email.split('@')[0] ||
-          (role === 'profesor' ? 'Profesor I.P.E.T. N° 247' : 'Preceptor I.P.E.T. N° 247');
-
-    const assignedCourses =
-      role === 'preceptor'
-        ? ['c-1a', 'c-1b', 'c-2a', 'c-2b', 'c-3a', 'c-3b']
-        : ['c-1a', 'c-2a', 'c-3a'];
-    const assignedSubjects =
-      role === 'preceptor' ? null : ['sub-tall-1a', 'sub-tall-2a', 'sub-tall-3a'];
-
-    const created = await registerGoogleUser({
-      uid: decodedToken.uid,
-      email,
-      name: resolvedName,
-      role,
-      turn: resolvedTurn,
-      assignedCourses,
-      assignedSubjects,
+    return res.status(403).json({
+      error: 'Complete la verificación por código de Gmail para enviar su solicitud al Administrador.',
     });
-
-    return res.status(201).json(mapDbUserToProfile(created));
   } catch (error) {
     console.error('POST /api/auth/google-sync failed:', error);
     return res.status(401).json({ error: 'No se pudo verificar el acceso institucional con Google.' });
@@ -530,12 +754,15 @@ app.get('/api/bootstrap', requireAuth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'No autorizado.' });
     }
 
-    const [courses, subjects, students, attendanceSheets] = await Promise.all([
-      getAllCourses(),
-      getAllSubjects(),
-      getAllStudents(),
-      getAllAttendanceSheets(),
-    ]);
+    const isAdmin = req.dbUser.role === 'administrador';
+    const [courses, subjects, students, attendanceSheets, pendingRegistrationRequestsCount] =
+      await Promise.all([
+        getAllCourses(),
+        getAllSubjects(),
+        getAllStudents(),
+        getAllAttendanceSheets(),
+        isAdmin ? getPendingRegistrationRequestsCount() : Promise.resolve(0),
+      ]);
 
     return res.json({
       user: mapDbUserToProfile(req.dbUser),
@@ -543,12 +770,103 @@ app.get('/api/bootstrap', requireAuth, async (req: AuthRequest, res) => {
       subjects,
       students,
       attendanceSheets,
+      pendingRegistrationRequestsCount,
     });
   } catch (error) {
     console.error('Error in /api/bootstrap:', error);
     return res.status(500).json({
       error: 'No se pudieron cargar los datos institucionales desde PostgreSQL.',
     });
+  }
+});
+
+// Admin-only registration requests management
+app.get('/api/admin/registration-requests', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (!req.dbUser || req.dbUser.role !== 'administrador') {
+      return res.status(403).json({
+        error: 'Solo Administración puede consultar y gestionar solicitudes de registro.',
+      });
+    }
+    const requests = await listRegistrationRequests();
+    const pendingCount = requests.filter((r) => r.status === 'pending_approval').length;
+    return res.json({ requests, pendingCount });
+  } catch (error) {
+    console.error('GET /api/admin/registration-requests failed:', error);
+    return res.status(500).json({ error: 'No se pudieron cargar las solicitudes de registro.' });
+  }
+});
+
+app.post('/api/admin/registration-requests/:id/approve', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (!req.dbUser || req.dbUser.role !== 'administrador') {
+      return res.status(403).json({
+        error: 'Solo Administración puede aceptar solicitudes de registro.',
+      });
+    }
+    const requestId = parseInt(String(req.params.id || ''), 10);
+    if (Number.isNaN(requestId) || requestId <= 0) {
+      return res.status(400).json({ error: 'ID de solicitud inválido.' });
+    }
+
+    const result = await approveRegistrationRequest({
+      requestId,
+      adminUid: req.dbUser.uid,
+      adminName: req.dbUser.name,
+    });
+
+    if (!result.ok) {
+      if (result.reason === 'not_found') {
+        return res.status(404).json({ error: 'Solicitud no encontrada.' });
+      }
+      if (result.reason === 'already_exists') {
+        return res.status(409).json({ error: 'El usuario ya tiene una cuenta activa.' });
+      }
+      return res.status(409).json({ error: 'La solicitud ya fue procesada anteriormente.' });
+    }
+
+    return res.json({ approved: true, request: result.request });
+  } catch (error) {
+    console.error('POST /api/admin/registration-requests/:id/approve failed:', error);
+    return res.status(500).json({ error: 'No se pudo aprobar la solicitud de registro.' });
+  }
+});
+
+app.post('/api/admin/registration-requests/:id/reject', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (!req.dbUser || req.dbUser.role !== 'administrador') {
+      return res.status(403).json({
+        error: 'Solo Administración puede declinar solicitudes de registro.',
+      });
+    }
+    const requestId = parseInt(String(req.params.id || ''), 10);
+    if (Number.isNaN(requestId) || requestId <= 0) {
+      return res.status(400).json({ error: 'ID de solicitud inválido.' });
+    }
+
+    const reason =
+      typeof req.body?.reason === 'string' && req.body.reason.trim()
+        ? req.body.reason.trim().slice(0, 300)
+        : undefined;
+
+    const result = await rejectRegistrationRequest({
+      requestId,
+      adminUid: req.dbUser.uid,
+      adminName: req.dbUser.name,
+      reason,
+    });
+
+    if (!result.ok) {
+      if (result.reason === 'not_found') {
+        return res.status(404).json({ error: 'Solicitud no encontrada.' });
+      }
+      return res.status(409).json({ error: 'La solicitud ya fue procesada anteriormente.' });
+    }
+
+    return res.json({ rejected: true, request: result.request });
+  } catch (error) {
+    console.error('POST /api/admin/registration-requests/:id/reject failed:', error);
+    return res.status(500).json({ error: 'No se pudo declinar la solicitud de registro.' });
   }
 });
 
@@ -657,11 +975,16 @@ app.delete('/api/students/:id', requireAuth, async (req: AuthRequest, res) => {
 // Attendance Sheets CRUD
 app.get('/api/attendance', requireAuth, async (req: AuthRequest, res) => {
   try {
+    if (!req.dbUser) {
+      return res.status(401).json({ error: 'No autorizado.' });
+    }
     const courseId = typeof req.query.courseId === 'string' ? req.query.courseId : undefined;
     const date = typeof req.query.date === 'string' ? req.query.date : undefined;
     const subjectId = typeof req.query.subjectId === 'string' ? req.query.subjectId : undefined;
+    const takenByUserId =
+      req.dbUser.role === 'administrador' ? undefined : req.dbUser.uid;
 
-    const sheets = await getAllAttendanceSheets({ courseId, date, subjectId });
+    const sheets = await getAllAttendanceSheets({ courseId, date, subjectId, takenByUserId });
     return res.json(sheets);
   } catch (error) {
     console.error('GET /api/attendance failed:', error);
@@ -709,6 +1032,16 @@ app.post('/api/attendance', requireAuth, async (req: AuthRequest, res) => {
         error:
           'Los profesores únicamente pueden registrar asistencia en sus materias asignadas (no Asistencia General).',
       });
+    }
+
+    if (userRole !== 'administrador') {
+      const existingByKey = await getAttendanceSheetByKey(date, courseId.trim(), subjectId.trim());
+      if (existingByKey && existingByKey.takenByUserId !== req.dbUser.uid) {
+        return res.status(403).json({
+          error:
+            'No tiene permiso para modificar una planilla registrada por otro usuario. Solo Administración puede editar registros ajenos.',
+        });
+      }
     }
 
     const sanitizedEntries: AttendanceEntry[] = [];
@@ -778,7 +1111,7 @@ app.delete('/api/attendance/:id', requireAuth, async (req: AuthRequest, res) => 
         error: 'Por preservación de datos, Preceptoría no puede eliminar registros de materias de profesores.',
       });
     }
-    if (!isAdmin && !isPreceptor && existingSheet.takenByUserId !== req.dbUser.uid) {
+    if (!isAdmin && existingSheet.takenByUserId !== req.dbUser.uid) {
       return res.status(403).json({
         error: 'Solo puede anular planillas de asistencia que usted mismo haya registrado.',
       });

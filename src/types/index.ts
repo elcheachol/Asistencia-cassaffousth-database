@@ -57,6 +57,10 @@ export interface AttendanceSheet {
   takenByUserId: string;
   takenByUserName: string;
   takenByRole: UserRole;
+  lastEditedByUserId?: string;
+  lastEditedByUserName?: string;
+  lastEditedByRole?: UserRole;
+  lastEditedAt?: string;
   entries: AttendanceEntry[];
   timestamp: string;
   notes?: string;
@@ -73,3 +77,25 @@ export interface StudentMonthlySummary {
   alertaFaltas: 'normal' | 'advertencia' | 'critico'; // >=18 advertencia, >=25 libre (I.P.E.T. N° 247)
   dailyStatus: Record<number, AttendanceStatus | undefined>; // day of month (1..31) -> status
 }
+
+export type RegistrationRequestStatus =
+  | 'pending_email'
+  | 'pending_approval'
+  | 'approved'
+  | 'rejected';
+
+export interface RegistrationRequest {
+  id: number;
+  email: string;
+  authProvider: 'password' | 'google';
+  name: string;
+  role: 'profesor' | 'preceptor';
+  turn: 'Mañana' | 'Tarde';
+  status: RegistrationRequestStatus;
+  emailVerifiedAt?: string;
+  rejectionReason?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  createdAt: string;
+}
+

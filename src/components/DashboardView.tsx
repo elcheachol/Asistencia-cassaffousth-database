@@ -5,11 +5,9 @@ import {
   Clock,
   FileSpreadsheet,
   Users,
-  School,
   BookOpen,
-  Info,
   ChevronRight,
-  ClipboardList,
+  Bell,
 } from 'lucide-react';
 import { UserProfile, Course, Subject } from '../types';
 import {
@@ -23,16 +21,20 @@ import {
 
 interface DashboardViewProps {
   currentUser: UserProfile;
+  pendingRequestsCount?: number;
   onOpenTakeAttendance: (courseId?: string) => void;
   onGoToMonthlyReport: (courseId?: string) => void;
   onGoToStudents: (courseId?: string) => void;
+  onGoToAdminRequests?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   currentUser,
+  pendingRequestsCount = 0,
   onOpenTakeAttendance,
   onGoToMonthlyReport,
   onGoToStudents,
+  onGoToAdminRequests,
 }) => {
   const isAdmin = currentUser.role === 'administrador';
   const isTeacher = currentUser.role === 'profesor';
@@ -229,6 +231,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
+      {isAdmin && pendingRequestsCount > 0 && onGoToAdminRequests && (
+        <div className="bg-white border border-[#D5DCE6] border-l-4 border-l-[#B91C1C] rounded-lg p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Bell className="w-5 h-5 text-[#B91C1C] shrink-0 mt-0.5" />
+            <div>
+              <div className="text-xs font-bold text-[#0F294A]">
+                Notificación de Administración · {pendingRequestsCount}{' '}
+                {pendingRequestsCount === 1
+                  ? 'solicitud de registro pendiente'
+                  : 'solicitudes de registro pendientes'}
+              </div>
+              <p className="text-xs text-slate-600 mt-0.5">
+                {pendingRequestsCount === 1
+                  ? 'Un usuario verificó su identidad por Gmail y aguarda su aprobación o rechazo.'
+                  : 'Nuevos usuarios verificaron su identidad por Gmail y aguardan su aprobación o rechazo.'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onGoToAdminRequests}
+            className="bg-[#B91C1C] hover:bg-[#991B1B] text-white font-semibold px-4 py-2 rounded-md text-xs shrink-0 self-start sm:self-auto cursor-pointer transition-colors"
+          >
+            Revisar solicitudes
+          </button>
+        </div>
+      )}
+
       {/* Course / Subject Roster Overview */}
       <div className="bg-white border border-[#D5DCE6] rounded-lg p-4 sm:p-6 shadow-2xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 border-b border-[#E4E9F0] pb-3.5">
@@ -317,29 +348,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             );
           })}
-        </div>
-      </div>
-
-      {/* Institutional Reference Notes */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="bg-white border border-[#D5DCE6] rounded-lg p-4 shadow-2xs">
-          <div className="flex items-center gap-1.5 text-[#B91C1C] font-school-serif font-bold text-xs mb-1">
-            <Info className="w-4 h-4 shrink-0" />
-            <span>Cómputo de Faltas Escolares</span>
-          </div>
-          <p className="text-[11px] text-slate-600 leading-relaxed">
-            Inasistencia injustificada: 1 falta. Tardanza: 0.5 falta. Las justificaciones requieren certificado médico o constancia autorizada por Preceptoría dentro de los plazos reglamentarios.
-          </p>
-        </div>
-
-        <div className="bg-white border border-[#D5DCE6] rounded-lg p-4 shadow-2xs">
-          <div className="flex items-center gap-1.5 text-[#0F294A] font-school-serif font-bold text-xs mb-1">
-            <FileSpreadsheet className="w-4 h-4 shrink-0" />
-            <span>Planillas Oficiales del I.P.E.T. N° 247</span>
-          </div>
-          <p className="text-[11px] text-slate-600 leading-relaxed">
-            Descargue en Excel (.XLSX) o imprima el formulario mensual oficial para el archivo institucional y las firmas de Preceptoría y Dirección.
-          </p>
         </div>
       </div>
     </div>

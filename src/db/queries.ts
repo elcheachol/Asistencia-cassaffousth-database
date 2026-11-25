@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, like } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, like, sql } from 'drizzle-orm';
 import { db } from './index.ts';
 import {
   attendanceEntries,
@@ -29,6 +29,14 @@ export async function ensureInitialCatalogSeeded(): Promise<void> {
   if (!catalogSeededPromise) {
     catalogSeededPromise = (async () => {
       try {
+        await db.execute(sql`
+          ALTER TABLE attendance_sheets
+            ADD COLUMN IF NOT EXISTS last_edited_by_user_id text,
+            ADD COLUMN IF NOT EXISTS last_edited_by_user_name text,
+            ADD COLUMN IF NOT EXISTS last_edited_by_role text,
+            ADD COLUMN IF NOT EXISTS last_edited_at timestamp;
+        `);
+
         const existingCourses = await db.select({ id: courses.id }).from(courses).limit(1);
         if (existingCourses.length > 0) {
           return;
@@ -260,6 +268,7 @@ export async function getAllAttendanceSheets(filters?: {
   courseId?: string;
   date?: string;
   subjectId?: string;
+  takenByUserId?: string;
 }): Promise<AttendanceSheet[]> {
   try {
     await ensureInitialCatalogSeeded();
@@ -273,6 +282,9 @@ export async function getAllAttendanceSheets(filters?: {
     }
     if (filters?.subjectId) {
       conditions.push(eq(attendanceSheets.subjectId, filters.subjectId));
+    }
+    if (filters?.takenByUserId) {
+      conditions.push(eq(attendanceSheets.takenByUserId, filters.takenByUserId));
     }
 
     const sheetRows =
@@ -320,6 +332,17 @@ export async function getAllAttendanceSheets(filters?: {
           : s.takenByRole === 'preceptor'
           ? 'preceptor'
           : 'profesor',
+      lastEditedByUserId: s.lastEditedByUserId ?? undefined,
+      lastEditedByUserName: s.lastEditedByUserName ?? undefined,
+      lastEditedByRole:
+        s.lastEditedByRole === 'administrador'
+          ? 'administrador'
+          : s.lastEditedByRole === 'preceptor'
+          ? 'preceptor'
+          : s.lastEditedByRole === 'profesor'
+          ? 'profesor'
+          : undefined,
+      lastEditedAt: s.lastEditedAt ? s.lastEditedAt.toISOString() : undefined,
       entries: entriesBySheet.get(s.id) ?? [],
       timestamp: s.timestamp.toISOString(),
       notes: s.notes ?? undefined,
@@ -337,6 +360,7 @@ export async function upsertAttendanceSheet(
   dbUserId: number
 ): Promise<AttendanceSheet> {
   try {
+    await ensureInitialCatalogSeeded();
     return await db.transaction(async (tx) => {
       // Find existing by (date, courseId, subjectId) to preserve canonical sheet id if present
       const existing = await tx
@@ -351,8 +375,19 @@ export async function upsertAttendanceSheet(
         )
         .limit(1);
 
-      const targetSheetId = existing.length > 0 ? existing[0].id : sheet.id;
+      const isExisting = existing.length > 0;
+      const targetSheetId = isExisting ? existing[0].id : sheet.id;
+      const preserveCreator = isExisting && sheet.takenByRole === 'administrador';
+      const resolvedUserId = preserveCreator ? existing[0].userId : dbUserId;
+      const resolvedTakenByUserId = preserveCreator ? existing[0].takenByUserId : sheet.takenByUserId;
+      const resolvedTakenByUserName = preserveCreator ? existing[0].takenByUserName : sheet.takenByUserName;
+      const resolvedTakenByRole = preserveCreator ? existing[0].takenByRole : sheet.takenByRole;
       const now = new Date();
+
+      const resolvedLastEditedByUserId = isExisting ? sheet.takenByUserId : null;
+      const resolvedLastEditedByUserName = isExisting ? sheet.takenByUserName : null;
+      const resolvedLastEditedByRole = isExisting ? sheet.takenByRole : null;
+      const resolvedLastEditedAt = isExisting ? now : null;
 
       await tx
         .insert(attendanceSheets)
@@ -362,10 +397,14 @@ export async function upsertAttendanceSheet(
           courseId: sheet.courseId,
           subjectId: sheet.subjectId,
           turn: sheet.turn,
-          userId: dbUserId,
-          takenByUserId: sheet.takenByUserId,
-          takenByUserName: sheet.takenByUserName,
-          takenByRole: sheet.takenByRole,
+          userId: resolvedUserId,
+          takenByUserId: resolvedTakenByUserId,
+          takenByUserName: resolvedTakenByUserName,
+          takenByRole: resolvedTakenByRole,
+          lastEditedByUserId: resolvedLastEditedByUserId,
+          lastEditedByUserName: resolvedLastEditedByUserName,
+          lastEditedByRole: resolvedLastEditedByRole,
+          lastEditedAt: resolvedLastEditedAt,
           notes: sheet.notes ?? null,
           timestamp: now,
         })
@@ -373,10 +412,14 @@ export async function upsertAttendanceSheet(
           target: attendanceSheets.id,
           set: {
             turn: sheet.turn,
-            userId: dbUserId,
-            takenByUserId: sheet.takenByUserId,
-            takenByUserName: sheet.takenByUserName,
-            takenByRole: sheet.takenByRole,
+            userId: resolvedUserId,
+            takenByUserId: resolvedTakenByUserId,
+            takenByUserName: resolvedTakenByUserName,
+            takenByRole: resolvedTakenByRole,
+            lastEditedByUserId: resolvedLastEditedByUserId,
+            lastEditedByUserName: resolvedLastEditedByUserName,
+            lastEditedByRole: resolvedLastEditedByRole,
+            lastEditedAt: resolvedLastEditedAt,
             notes: sheet.notes ?? null,
             timestamp: now,
           },
@@ -400,6 +443,25 @@ export async function upsertAttendanceSheet(
       return {
         ...sheet,
         id: targetSheetId,
+        takenByUserId: resolvedTakenByUserId,
+        takenByUserName: resolvedTakenByUserName,
+        takenByRole:
+          resolvedTakenByRole === 'administrador'
+            ? 'administrador'
+            : resolvedTakenByRole === 'preceptor'
+            ? 'preceptor'
+            : 'profesor',
+        lastEditedByUserId: resolvedLastEditedByUserId ?? undefined,
+        lastEditedByUserName: resolvedLastEditedByUserName ?? undefined,
+        lastEditedByRole:
+          resolvedLastEditedByRole === 'administrador'
+            ? 'administrador'
+            : resolvedLastEditedByRole === 'preceptor'
+            ? 'preceptor'
+            : resolvedLastEditedByRole === 'profesor'
+            ? 'profesor'
+            : undefined,
+        lastEditedAt: resolvedLastEditedAt ? resolvedLastEditedAt.toISOString() : undefined,
         timestamp: now.toISOString(),
       };
     });
@@ -408,6 +470,38 @@ export async function upsertAttendanceSheet(
     throw new Error('No se pudo guardar la planilla de asistencia en PostgreSQL.', {
       cause: error,
     });
+  }
+}
+
+export async function getAttendanceSheetByKey(
+  date: string,
+  courseId: string,
+  subjectId: string
+): Promise<{
+  id: string;
+  takenByUserId: string;
+  takenByRole: string;
+} | null> {
+  try {
+    const rows = await db
+      .select({
+        id: attendanceSheets.id,
+        takenByUserId: attendanceSheets.takenByUserId,
+        takenByRole: attendanceSheets.takenByRole,
+      })
+      .from(attendanceSheets)
+      .where(
+        and(
+          eq(attendanceSheets.date, date),
+          eq(attendanceSheets.courseId, courseId),
+          eq(attendanceSheets.subjectId, subjectId)
+        )
+      )
+      .limit(1);
+    return rows.length > 0 ? rows[0] : null;
+  } catch (error) {
+    console.error('Database query failed in getAttendanceSheetByKey:', error);
+    throw new Error('No se pudo verificar la planilla de asistencia.', { cause: error });
   }
 }
 

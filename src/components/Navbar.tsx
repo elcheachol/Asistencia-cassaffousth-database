@@ -9,13 +9,23 @@ import {
   Lock,
   BookOpen,
   UserX,
+  Bell,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 
+export type AppTab =
+  | 'dashboard'
+  | 'take_attendance'
+  | 'monthly_report'
+  | 'students'
+  | 'history'
+  | 'admin_requests';
+
 interface NavbarProps {
   currentUser: UserProfile;
-  currentTab: 'dashboard' | 'take_attendance' | 'monthly_report' | 'students' | 'history';
-  onSelectTab: (tab: 'dashboard' | 'take_attendance' | 'monthly_report' | 'students' | 'history') => void;
+  currentTab: AppTab;
+  pendingRequestsCount?: number;
+  onSelectTab: (tab: AppTab) => void;
   onOpenTakeAttendance: () => void;
   onLogout: () => void;
   onOpenDeleteAccount: () => void;
@@ -24,6 +34,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   currentTab,
+  pendingRequestsCount = 0,
   onSelectTab,
   onOpenTakeAttendance,
   onLogout,
@@ -158,6 +169,26 @@ export const Navbar: React.FC<NavbarProps> = ({
               <History className="w-3.5 h-3.5 shrink-0" />
               <span>Historial</span>
             </button>
+
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => onSelectTab('admin_requests')}
+                className={`px-3 h-full text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer border-b-2 whitespace-nowrap shrink-0 ${
+                  currentTab === 'admin_requests'
+                    ? 'text-white border-white bg-white/10'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5 border-transparent'
+                }`}
+              >
+                <Bell className="w-3.5 h-3.5 shrink-0" />
+                <span>Solicitudes</span>
+                {pendingRequestsCount > 0 && (
+                  <span className="ml-0.5 px-1.5 py-0.5 text-[10px] leading-none font-school-mono font-bold rounded-full bg-[#B91C1C] text-white">
+                    {pendingRequestsCount}
+                  </span>
+                )}
+              </button>
+            )}
           </nav>
 
           {/* Action Button, User Info & Always-Accessible Logout on Tablet/Desktop */}
@@ -253,6 +284,26 @@ export const Navbar: React.FC<NavbarProps> = ({
             <History className="w-3.5 h-3.5 shrink-0" />
             <span>Historial</span>
           </button>
+
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => onSelectTab('admin_requests')}
+              className={`px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap ${
+                currentTab === 'admin_requests'
+                  ? 'bg-white/10 text-white border-b-2 border-[#B91C1C]'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Bell className="w-3.5 h-3.5 shrink-0" />
+              <span>Solicitudes</span>
+              {pendingRequestsCount > 0 && (
+                <span className="px-1.5 py-0.5 text-[10px] leading-none font-school-mono font-bold rounded-full bg-[#B91C1C] text-white">
+                  {pendingRequestsCount}
+                </span>
+              )}
+            </button>
+          )}
         </nav>
 
         {/* Mobile Navigation Tabs Row (< 768px) */}
@@ -300,6 +351,26 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Users className="w-4 h-4" />
             <span className="text-[10px]">Alumnos</span>
           </button>
+
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => onSelectTab('admin_requests')}
+              className={`py-1 px-2 font-semibold flex flex-col items-center gap-0.5 relative ${
+                currentTab === 'admin_requests' ? 'text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <div className="relative">
+                <Bell className="w-4 h-4" />
+                {pendingRequestsCount > 0 && (
+                  <span className="absolute -top-1 -right-2 px-1 text-[9px] leading-tight font-school-mono font-bold rounded-full bg-[#B91C1C] text-white">
+                    {pendingRequestsCount}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px]">Solicitudes</span>
+            </button>
+          )}
 
           <button
             type="button"

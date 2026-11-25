@@ -26,6 +26,7 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
   currentUser,
   onEditSheet,
 }) => {
+  const isAdmin = currentUser.role === 'administrador';
   const [sheets, setSheets] = useState<AttendanceSheet[]>(() => getAllAttendanceSheets());
   const [courseFilter, setCourseFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,18 +39,40 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
     setSheets(getAllAttendanceSheets());
   };
 
+  const formatEditDateTime = (iso?: string) => {
+    if (!iso) return '';
+    const dateObj = new Date(iso);
+    if (Number.isNaN(dateObj.getTime())) return '';
+    return dateObj.toLocaleString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   const filteredSheets = useMemo(() => {
     return sheets.filter(sheet => {
+      if (!isAdmin) {
+        if (sheet.takenByUserId !== currentUser.id) return false;
+        if (sheet.takenByRole !== currentUser.role) return false;
+      }
       if (courseFilter !== 'all' && sheet.courseId !== courseFilter) return false;
       if (searchTerm.trim()) {
         const cleanTerm = normalizeSearchText(searchTerm);
         const matchesDate = sheet.date.includes(searchTerm.trim());
-        const matchesUser = normalizeSearchText(sheet.takenByUserName).includes(cleanTerm);
+        const matchesUser =
+          isAdmin &&
+          (normalizeSearchText(sheet.takenByUserName).includes(cleanTerm) ||
+            Boolean(
+              sheet.lastEditedByUserName &&
+                normalizeSearchText(sheet.lastEditedByUserName).includes(cleanTerm)
+            ));
         if (!matchesDate && !matchesUser) return false;
       }
       return true;
     });
-  }, [sheets, courseFilter, searchTerm]);
+  }, [sheets, courseFilter, searchTerm, isAdmin, currentUser.id, currentUser.role]);
 
   const handleDelete = async (sheetId: string) => {
     if (confirm('¿Desea anular este registro de asistencia?')) {
@@ -85,10 +108,12 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
               I.P.E.T. N° 247 · Libro Diario de Asistencias
             </div>
             <h1 className="text-xl sm:text-2xl font-bold font-school-serif text-[#0F294A] tracking-tight">
-              Historial de Planillas Registradas
+              {isAdmin ? 'Historial General de Planillas' : 'Mi Historial de Planillas'}
             </h1>
             <p className="text-xs text-slate-600 mt-0.5 max-w-2xl">
-              Histórico de partes de asistencia asentados en el sistema por fecha, curso y cátedra.
+              {isAdmin
+                ? 'Vista de Administración: consulte, edite o anule los partes de asistencia de todo el personal.'
+                : 'Partes de asistencia registrados por su usuario, ordenados por fecha y curso.'}
             </p>
           </div>
         </div>
@@ -122,7 +147,11 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
             <input
               type="text"
-              placeholder="Buscar por fecha (YYYY-MM-DD) o docente..."
+              placeholder={
+                isAdmin
+                  ? 'Buscar por fecha (YYYY-MM-DD) o docente...'
+                  : 'Buscar por fecha (YYYY-MM-DD)...'
+              }
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full h-9 bg-white border border-[#D5DCE6] rounded-md pl-8 pr-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0F294A]"
@@ -210,8 +239,29 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="text-[11px] text-slate-600">
-                    Docente: <strong className="text-slate-900">{sheet.takenByUserName}</strong> · {sheet.takenByRole}
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] text-slate-600">
+                      Registrado por:{' '}
+                      <strong className="text-slate-900">{sheet.takenByUserName}</strong> ·{' '}
+                      {sheet.takenByRole}
+                    </div>
+
+                    {sheet.lastEditedByUserName &&
+                      (sheet.lastEditedByRole === 'administrador' ||
+                        sheet.lastEditedByUserId !== sheet.takenByUserId) && (
+                        <div className="px-2 py-1 rounded bg-[#F8FAFC] border border-[#D5DCE6] border-l-2 border-l-[#B91C1C] text-[11px] text-slate-700">
+                          Responsable de edición:{' '}
+                          <strong className="text-[#0F294A]">{sheet.lastEditedByUserName}</strong> ·{' '}
+                          <span className="font-semibold text-[#B91C1C]">
+                            {sheet.lastEditedByRole}
+                          </span>
+                          {sheet.lastEditedAt && (
+                            <span className="text-slate-500 font-school-mono ml-1">
+                              ({formatEditDateTime(sheet.lastEditedAt)})
+                            </span>
+                          )}
+                        </div>
+                      )}
                   </div>
                 </div>
 
@@ -231,9 +281,9 @@ export const AttendanceHistoryView: React.FC<AttendanceHistoryViewProps> = ({
                       <span>Ver / Editar</span>
                     </button>
 
-                    {(currentUser.role === 'administrador' ||
-                      (currentUser.role === 'preceptor' && sheet.subjectId === 'sub-general') ||
-                      (currentUser.role === 'profesor' && sheet.takenByUserId === currentUser.id)) && (
+                    {(isAdmin ||
+                      (sheet.takenByUserId === currentUser.id &&
+                        (currentUser.role !== 'preceptor' || sheet.subjectId === 'sub-general'))) && (
                       <button
                         type="button"
                         onClick={() => handleDelete(sheet.id)}

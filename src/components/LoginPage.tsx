@@ -22,12 +22,15 @@ import { auth, googleAuthProvider } from '../lib/firebase';
 import {
   apiGoogleSync,
   apiLogin,
-  apiRegister,
   fetchBootstrap,
   setInMemorySessionToken,
   type BootstrapPayload,
 } from '../services/api';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
+import {
+  RegisterVerificationModal,
+  type PendingRegistrationPayload,
+} from './RegisterVerificationModal';
 
 interface LoginPageProps {
   onLoginSuccess: (payload: BootstrapPayload) => void;
@@ -52,6 +55,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isForgotOpen, setIsForgotOpen] = useState(false);
+  const [pendingRegistration, setPendingRegistration] =
+    useState<PendingRegistrationPayload | null>(null);
+  const [isVerifyRegisterOpen, setIsVerifyRegisterOpen] = useState(false);
 
   const handleModeSwitch = (mode: 'login' | 'register') => {
     setAuthMode(mode);
@@ -92,6 +98,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setSuccessMsg(null);
 
     if (!nameInput.trim()) {
       setErrorMsg('Ingrese su nombre y apellido para registrar su cuenta.');
@@ -110,51 +117,39 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       return;
     }
 
-    setIsLoading(true);
-    try {
-      await apiRegister({
-        email: emailInput.trim(),
-        password: passwordInput,
-        name: nameInput.trim(),
-        role: selectedRole,
-        turn: turnInput,
-      });
-      const bootstrap = await fetchBootstrap();
-      onLoginSuccess(bootstrap);
-    } catch (err: unknown) {
-      setInMemorySessionToken(null);
-      setErrorMsg(
-        err instanceof Error ? err.message : 'No se pudo crear la cuenta.'
-      );
-    } finally {
-      setIsLoading(false);
-    }
+    setPendingRegistration({
+      authProvider: 'password',
+      email: emailInput.trim(),
+      password: passwordInput,
+      name: nameInput.trim(),
+      role: selectedRole === 'preceptor' ? 'preceptor' : 'profesor',
+      turn: turnInput,
+    });
+    setIsVerifyRegisterOpen(true);
   };
 
   const handleGoogleAuth = async () => {
     setErrorMsg(null);
+    setSuccessMsg(null);
+
+    if (authMode === 'register') {
+      setPendingRegistration({
+        authProvider: 'google',
+        email: emailInput.trim(),
+        name: nameInput.trim(),
+        role: selectedRole === 'preceptor' ? 'preceptor' : 'profesor',
+        turn: turnInput,
+      });
+      setIsVerifyRegisterOpen(true);
+      return;
+    }
+
     setIsLoading(true);
     setInMemorySessionToken(null);
 
     try {
-      const credential = await signInWithPopup(auth, googleAuthProvider);
-      const firebaseUser = credential.user;
-
-      if (authMode === 'register') {
-        const resolvedName =
-          nameInput.trim() ||
-          firebaseUser.displayName?.trim() ||
-          (selectedRole === 'profesor' ? 'Profesor de Cátedra' : 'Preceptor de Turno');
-
-        await apiGoogleSync({
-          mode: 'register',
-          role: selectedRole,
-          turn: turnInput,
-          name: resolvedName,
-        });
-      } else {
-        await apiGoogleSync({ mode: 'login' });
-      }
+      await signInWithPopup(auth, googleAuthProvider);
+      await apiGoogleSync({ mode: 'login' });
 
       const bootstrap = await fetchBootstrap();
       onLoginSuccess(bootstrap);
@@ -227,7 +222,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               <p className="text-xs text-slate-300 leading-relaxed">
                 {authMode === 'login'
                   ? 'Acceda con sus credenciales registradas para gestionar asistencias de sus cursos, cátedras y planillas mensuales.'
-                  : 'Cree su cuenta una única vez indicando su función escolar. Sus credenciales quedarán guardadas para próximos ingresos.'}
+                  : 'Complete sus datos, verifique su identidad mediante un código enviado a su Gmail y aguarde la aprobación del Administrador.'}
               </p>
             </div>
 
@@ -567,20 +562,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     disabled={isLoading}
                     className="w-full py-2.5 px-4 rounded-md font-semibold text-xs sm:text-sm text-white bg-[#B91C1C] hover:bg-[#991B1B] disabled:opacity-60 transition-colors flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Guardando cuenta...</span>
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus className="w-4 h-4" />
-                        <span>
-                          Registrarse como {selectedRole === 'profesor' ? 'Profesor' : 'Preceptor'}
-                        </span>
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
+                    <UserPlus className="w-4 h-4" />
+                    <span>
+                      Verificar Gmail y solicitar alta ({selectedRole === 'profesor' ? 'Profesor' : 'Preceptor'})
+                    </span>
+                    <ArrowRight className="w-4 h-4" />
                   </button>
 
                   <button
@@ -597,7 +583,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             </div>
 
             <div className="mt-6 pt-3.5 border-t border-[#E4E9F0] text-[11px] text-slate-600">
-              <strong className="text-[#0F294A]">Acceso permanente:</strong> Las cuentas registradas quedan guardadas en el sistema del I.P.E.T. N° 247 para ingresar con correo y contraseña.
+              <strong className="text-[#0F294A]">Privacidad institucional:</strong> Todo nuevo registro valida su identidad por Gmail y requiere aprobación del Administrador del I.P.E.T. N° 247.
             </div>
           </div>
         </div>
@@ -620,6 +606,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           setSuccessMsg(
             `Contraseña actualizada para ${recoveredEmail}. Ingrese ahora con su nueva contraseña.`
           );
+        }}
+      />
+
+      <RegisterVerificationModal
+        isOpen={isVerifyRegisterOpen}
+        pendingRegistration={pendingRegistration}
+        onClose={() => setIsVerifyRegisterOpen(false)}
+        onSubmittedForApproval={(verifiedEmail, message) => {
+          setIsVerifyRegisterOpen(false);
+          setPendingRegistration(null);
+          setAuthMode('login');
+          setEmailInput(verifiedEmail);
+          setPasswordInput('');
+          setConfirmPasswordInput('');
+          setShowPassword(false);
+          setShowConfirmPassword(false);
+          setErrorMsg(null);
+          setSuccessMsg(message);
         }}
       />
     </div>

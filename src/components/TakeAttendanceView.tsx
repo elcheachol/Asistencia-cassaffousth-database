@@ -32,6 +32,7 @@ interface TakeAttendanceViewProps {
   onGoToMonthlyReport?: (courseId: string, month: number, year: number) => void;
   initialCourseId?: string;
   initialDate?: string;
+  initialSubjectId?: string;
 }
 
 export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
@@ -40,6 +41,7 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
   onGoToMonthlyReport,
   initialCourseId,
   initialDate,
+  initialSubjectId,
 }) => {
   const isAdmin = currentUser.role === 'administrador';
   const isTeacher = currentUser.role === 'profesor';
@@ -72,14 +74,14 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
     return getAvailableSubjectsForUser(currentUser, selectedCourseId);
   }, [currentUser, selectedCourseId]);
 
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>(initialSubjectId || '');
   const [searchTerm, setSearchTerm] = useState('');
   const [classHour, setClassHour] = useState('1° y 2° Módulo (07:30 a 09:00)');
   const [generalNotes, setGeneralNotes] = useState('');
   const [isSavedRecently, setIsSavedRecently] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [existingRecordNotice, setExistingRecordNotice] = useState(false);
+  const [existingSheetInfo, setExistingSheetInfo] = useState<AttendanceSheet | null>(null);
   const [showTeacherHelp, setShowTeacherHelp] = useState(false);
 
   const students = useMemo(() => {
@@ -103,12 +105,16 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
     if (availableSubjects.length > 0) {
       const currentValid = availableSubjects.find(s => s.id === selectedSubjectId);
       if (!currentValid) {
-        setSelectedSubjectId(availableSubjects[0].id);
+        if (initialSubjectId && availableSubjects.some(s => s.id === initialSubjectId)) {
+          setSelectedSubjectId(initialSubjectId);
+        } else {
+          setSelectedSubjectId(availableSubjects[0].id);
+        }
       }
     } else {
       setSelectedSubjectId('');
     }
-  }, [availableSubjects, selectedSubjectId]);
+  }, [availableSubjects, selectedSubjectId, initialSubjectId]);
 
   const [entries, setEntries] = useState<Record<string, { status: AttendanceStatus; observation: string }>>({});
 
@@ -119,7 +125,7 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
     const initialEntries: Record<string, { status: AttendanceStatus; observation: string }> = {};
 
     if (existingSheet && existingSheet.entries.length > 0) {
-      setExistingRecordNotice(true);
+      setExistingSheetInfo(existingSheet);
       setGeneralNotes(existingSheet.notes || '');
 
       students.forEach(st => {
@@ -134,7 +140,7 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
         }
       });
     } else {
-      setExistingRecordNotice(false);
+      setExistingSheetInfo(null);
       students.forEach(st => {
         initialEntries[st.id] = { status: 'presente', observation: '' };
       });
@@ -228,8 +234,8 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
 
     setIsSaving(true);
     try {
-      await saveAttendanceSheet(sheet);
-      setExistingRecordNotice(true);
+      const saved = await saveAttendanceSheet(sheet);
+      setExistingSheetInfo(saved);
       setIsSavedRecently(true);
 
       if (onSavedSuccess) {
@@ -372,10 +378,26 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
             </div>
           )}
 
-          {existingRecordNotice && (
-            <div className="mt-2.5 p-2 bg-[#F8FAFC] border border-[#D5DCE6] rounded-md text-xs text-slate-700 flex items-center gap-1.5">
-              <Info className="w-3.5 h-3.5 text-[#0F294A] shrink-0" />
-              <span>Ya existe registro para este día y curso. Al presionar Guardar se actualizará.</span>
+          {existingSheetInfo && (
+            <div className="mt-2.5 p-2.5 bg-[#F8FAFC] border border-[#D5DCE6] rounded-md text-xs text-slate-700 flex items-start gap-2">
+              <Info className="w-4 h-4 text-[#0F294A] shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <div>
+                  Planilla registrada originalmente por{' '}
+                  <strong className="text-slate-900">{existingSheetInfo.takenByUserName}</strong> (
+                  {existingSheetInfo.takenByRole}). Al presionar Guardar se actualizará.
+                </div>
+                {existingSheetInfo.lastEditedByUserName &&
+                  (existingSheetInfo.lastEditedByRole === 'administrador' ||
+                    existingSheetInfo.lastEditedByUserId !== existingSheetInfo.takenByUserId) && (
+                    <div className="text-[11px] text-[#0F294A]">
+                      Responsable de última edición:{' '}
+                      <strong className="text-[#B91C1C]">
+                        {existingSheetInfo.lastEditedByUserName} ({existingSheetInfo.lastEditedByRole})
+                      </strong>
+                    </div>
+                  )}
+              </div>
             </div>
           )}
         </div>
