@@ -36,7 +36,36 @@ export async function verifyPassword(
 }
 
 const TOKEN_PREFIX = 'ipet1.';
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+export const SESSION_COOKIE_NAME = 'ipet247_session';
+export const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
+const SESSION_TTL_MS = SESSION_TTL_SECONDS * 1000;
+
+export function parseSessionCookie(cookieHeader?: string): string | null {
+  if (!cookieHeader || typeof cookieHeader !== 'string') return null;
+  const pairs = cookieHeader.split(';');
+  for (const rawPair of pairs) {
+    const eqIndex = rawPair.indexOf('=');
+    if (eqIndex <= 0) continue;
+    const name = rawPair.slice(0, eqIndex).trim();
+    if (name !== SESSION_COOKIE_NAME) continue;
+    const rawValue = rawPair.slice(eqIndex + 1).trim();
+    if (!rawValue) return null;
+    try {
+      return decodeURIComponent(rawValue);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export function formatSessionSetCookie(token: string): string {
+  return `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=None; Partitioned; Max-Age=${SESSION_TTL_SECONDS}`;
+}
+
+export function formatSessionClearCookie(): string {
+  return `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; Secure; SameSite=None; Partitioned; Max-Age=0`;
+}
 
 export function signSessionToken(uid: string): string {
   const payload = {

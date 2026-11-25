@@ -45,28 +45,39 @@ export function isFirebaseAuthListenerSuppressed(): boolean {
 }
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
+  const baseHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Requested-With': 'ipet247-spa',
+  };
+
   if (inMemorySessionToken) {
     return {
+      ...baseHeaders,
       Authorization: `Bearer ${inMemorySessionToken}`,
-      'Content-Type': 'application/json',
     };
   }
 
   const user = auth.currentUser;
-  if (!user) {
-    throw new Error('No hay sesión activa.');
+  if (user) {
+    const token = await user.getIdToken();
+    return {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    };
   }
-  const token = await user.getIdToken();
-  return {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
-  };
+
+  // Fallback to persistent HttpOnly session cookie attached via credentials: 'include'
+  return baseHeaders;
 }
 
 async function publicPost<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'ipet247-spa',
+    },
     body: JSON.stringify(body),
   });
 
@@ -85,6 +96,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = await getAuthHeaders();
   const response = await fetch(path, {
     ...init,
+    credentials: 'include',
     headers: {
       ...headers,
       ...(init?.headers || {}),
@@ -118,6 +130,7 @@ export async function apiSendRegistrationGmailCode(input: {
 }): Promise<{ sent: boolean; email: string; expiresInMinutes: number }> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'X-Requested-With': 'ipet247-spa',
   };
   if (input.firebaseIdToken) {
     headers.Authorization = `Bearer ${input.firebaseIdToken}`;
@@ -125,6 +138,7 @@ export async function apiSendRegistrationGmailCode(input: {
 
   const response = await fetch('/api/auth/register/send-code', {
     method: 'POST',
+    credentials: 'include',
     headers,
     body: JSON.stringify({
       authProvider: input.authProvider,
@@ -178,6 +192,17 @@ export async function apiLogin(input: {
   const result = await publicPost<AuthResponse>('/api/auth/login', input);
   setInMemorySessionToken(result.token);
   return result;
+}
+
+export async function apiLogout(): Promise<void> {
+  await fetch('/api/auth/logout', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'ipet247-spa',
+    },
+  });
 }
 
 export function apiGoogleSync(payload?: {

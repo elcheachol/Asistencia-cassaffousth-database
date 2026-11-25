@@ -10,8 +10,8 @@ import { UserProfile, AttendanceSheet } from './types';
 import { auth } from './lib/firebase';
 import {
   apiFetchAdminRegistrationRequests,
+  apiLogout,
   fetchBootstrap,
-  getInMemorySessionToken,
   isFirebaseAuthListenerSuppressed,
   setInMemorySessionToken,
   type BootstrapPayload,
@@ -62,7 +62,8 @@ export default function App() {
       if (
         message.includes('no registrada') ||
         message.includes('No autorizado') ||
-        message.includes('Sesión expirada')
+        message.includes('Sesión expirada') ||
+        message.includes('Usuario no encontrado')
       ) {
         setInMemorySessionToken(null);
         await signOut(auth).catch(() => {});
@@ -82,14 +83,9 @@ export default function App() {
         return;
       }
 
+      // Restore either active Firebase Google session or persistent HttpOnly cookie session
       if (!firebaseUser) {
-        // Keep active password-based session if logged in via credentials
-        if (!getInMemorySessionToken()) {
-          clearStorageSession();
-          setCurrentUserState(null);
-          setLoadError(null);
-        }
-        setIsInitialized(true);
+        await loadAuthenticatedData();
         return;
       }
 
@@ -137,6 +133,7 @@ export default function App() {
   const handleLogout = async () => {
     setInMemorySessionToken(null);
     try {
+      await apiLogout().catch(() => {});
       await signOut(auth);
     } finally {
       clearStorageSession();

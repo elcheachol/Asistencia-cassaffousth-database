@@ -27,6 +27,8 @@ import {
 } from './src/db/users.ts';
 import { escapeHtml, sendInstitutionalEmail } from './src/lib/mailer.ts';
 import {
+  formatSessionClearCookie,
+  formatSessionSetCookie,
   hashPassword,
   hashResetCode,
   signSessionToken,
@@ -361,6 +363,7 @@ app.post('/api/auth/login', async (req, res) => {
         name: configuredAdmin.name,
       });
       const token = signSessionToken(adminUser.uid);
+      res.setHeader('Set-Cookie', formatSessionSetCookie(token));
       return res.json({
         token,
         user: mapDbUserToProfile(adminUser),
@@ -408,6 +411,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     await recordLoginEvent(dbUser.id, 'password', dbUser.role);
     const token = signSessionToken(dbUser.uid);
+    res.setHeader('Set-Cookie', formatSessionSetCookie(token));
 
     return res.json({
       token,
@@ -417,6 +421,12 @@ app.post('/api/auth/login', async (req, res) => {
     console.error('POST /api/auth/login failed:', error);
     return res.status(500).json({ error: 'Error al iniciar sesión.' });
   }
+});
+
+// Clear persistent HttpOnly session cookie on logout
+app.post('/api/auth/logout', (_req, res) => {
+  res.setHeader('Set-Cookie', formatSessionClearCookie());
+  return res.json({ loggedOut: true });
 });
 
 // Send 6-digit password reset verification code via server email service
@@ -583,6 +593,7 @@ app.post('/api/auth/google-sync', async (req, res) => {
       }
 
       await recordLoginEvent(existing.id, 'google', existing.role);
+      res.setHeader('Set-Cookie', formatSessionClearCookie());
       return res.json(mapDbUserToProfile(existing));
     }
 
@@ -702,6 +713,7 @@ app.delete('/api/me/account', requireAuth, async (req: AuthRequest, res) => {
       await adminAuth.deleteUser(uidToDelete).catch(() => {});
     }
 
+    res.setHeader('Set-Cookie', formatSessionClearCookie());
     return res.json({ deleted: true });
   } catch (error) {
     console.error('DELETE /api/me/account failed:', error);
