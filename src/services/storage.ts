@@ -279,11 +279,11 @@ export function calculateMonthlyReport(
       }
     });
 
-    const totalFaltasComputadas = ausentes + tardanzas * 0.5;
+    const totalFaltasComputadas = ausentes + justificados + tardanzas * 0.5;
     const totalEvaluated = presentes + ausentes + justificados + tardanzas;
     const porcentajeAsistencia =
       totalEvaluated > 0
-        ? Math.round(((presentes + justificados) / totalEvaluated) * 100)
+        ? Math.round((presentes / totalEvaluated) * 100)
         : 100;
 
     let alertaFaltas: 'normal' | 'advertencia' | 'critico' = 'normal';

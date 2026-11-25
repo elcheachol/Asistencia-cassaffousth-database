@@ -332,7 +332,7 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
                 • <strong className="text-slate-900">Profesores:</strong> Tienen a su cargo exclusivamente la asistencia de sus <em>materias y módulos de taller técnico</em> asignados. No tienen acceso a la asistencia general.
               </p>
               <p className="text-[11px] leading-relaxed">
-                • <strong className="text-slate-900">Marcas:</strong> [P] Presente, [A] Ausente injustificado (1 falta), [J] Justificado (con certificado), [T] Tardanza pasados 15 min (0.5 falta).
+                • <strong className="text-slate-900">Marcas:</strong> [P] Presente, [A] Ausente injustificado (1 falta), [J] Ausente justificado (1 falta con certificado), [T] Tardanza pasados 15 min (0.5 falta).
               </p>
             </div>
           )}

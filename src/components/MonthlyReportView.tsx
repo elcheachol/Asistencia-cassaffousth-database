@@ -545,7 +545,7 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
                 <th className="py-2.5 px-1.5 text-center bg-[#0A1D37] text-white font-school-mono font-bold border-r border-white/15" title="Total Tardanzas">
                   T
                 </th>
-                <th className="py-2.5 px-2 text-center bg-[#0A1D37] text-white font-bold border-r border-white/15" title="Faltas Computadas: A + 0.5*T">
+                <th className="py-2.5 px-2 text-center bg-[#0A1D37] text-white font-bold border-r border-white/15" title="Faltas Computadas: A + J + 0.5*T">
                   Tot. Faltas
                 </th>
                 <th className="py-2.5 px-2 text-center bg-[#0A1D37] text-white font-bold border-r border-white/15">
