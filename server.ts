@@ -35,6 +35,7 @@ import {
 import {
   createOrUpdateStudent,
   deleteAttendanceSheetById,
+  deleteAttendanceSheetsByIds,
   deleteStudentById,
   getAllAttendanceSheets,
   getAllCourses,
@@ -42,6 +43,7 @@ import {
   getAllSubjects,
   getAttendanceSheetById,
   getAttendanceSheetByKey,
+  getAttendanceSheetsByIds,
   getMonthlyReportFromDb,
   upsertAttendanceSheet,
 } from './src/db/queries.ts';
@@ -1082,6 +1084,62 @@ app.delete('/api/attendance/:id', requireAuth, async (req: AuthRequest, res) => 
   } catch (error) {
     console.error('DELETE /api/attendance/:id failed:', error);
     return res.status(500).json({ error: 'No se pudo eliminar la planilla de asistencia.' });
+  }
+});
+
+app.post('/api/attendance/bulk-delete', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (!req.dbUser) {
+      return res.status(401).json({ error: 'No autorizado.' });
+    }
+
+    const rawIds = req.body?.ids;
+    if (!Array.isArray(rawIds) || rawIds.length === 0) {
+      return res.status(400).json({ error: 'Seleccione al menos una planilla para eliminar.' });
+    }
+
+    const uniqueIds = Array.from(
+      new Set(
+        rawIds
+          .filter((item): item is string => typeof item === 'string')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      )
+    );
+
+    if (uniqueIds.length === 0 || uniqueIds.length > 200) {
+      return res.status(400).json({
+        error: 'Cantidad de planillas seleccionadas inválida (entre 1 y 200 por operación).',
+      });
+    }
+
+    const existingSheets = await getAttendanceSheetsByIds(uniqueIds);
+    if (existingSheets.length === 0) {
+      return res.status(404).json({ error: 'No se encontraron las planillas seleccionadas.' });
+    }
+
+    const isAdmin = req.dbUser.role === 'administrador';
+    const isPreceptor = req.dbUser.role === 'preceptor';
+
+    for (const sheet of existingSheets) {
+      if (!isAdmin && isPreceptor && sheet.subjectId !== 'sub-general') {
+        return res.status(403).json({
+          error: 'Por preservación de datos, Preceptoría no puede eliminar registros de materias de profesores.',
+        });
+      }
+      if (!isAdmin && sheet.takenByUserId !== req.dbUser.uid) {
+        return res.status(403).json({
+          error: 'Solo puede anular planillas de asistencia que usted mismo haya registrado.',
+        });
+      }
+    }
+
+    const authorizedIds = existingSheets.map((s) => s.id);
+    const deletedCount = await deleteAttendanceSheetsByIds(authorizedIds);
+    return res.json({ deletedCount, deletedIds: authorizedIds });
+  } catch (error) {
+    console.error('POST /api/attendance/bulk-delete failed:', error);
+    return res.status(500).json({ error: 'No se pudieron eliminar las planillas seleccionadas.' });
   }
 });
 

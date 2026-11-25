@@ -8,6 +8,7 @@ import type {
   StudentMonthlySummary,
 } from '../types';
 import {
+  apiBulkDeleteAttendanceSheets,
   apiDeleteAttendanceSheet,
   apiDeleteStudent,
   apiFetchStudents,
@@ -204,6 +205,13 @@ export async function saveAttendanceSheet(sheet: AttendanceSheet): Promise<Atten
 export async function deleteAttendanceSheet(sheetId: string): Promise<void> {
   await apiDeleteAttendanceSheet(sheetId);
   store.attendanceSheets = store.attendanceSheets.filter((s) => s.id !== sheetId);
+}
+
+export async function deleteAttendanceSheets(sheetIds: string[]): Promise<number> {
+  const result = await apiBulkDeleteAttendanceSheets(sheetIds);
+  const deletedSet = new Set(result.deletedIds);
+  store.attendanceSheets = store.attendanceSheets.filter((s) => !deletedSet.has(s.id));
+  return result.deletedCount;
 }
 
 export function findAttendanceSheet(

@@ -542,6 +542,51 @@ export async function deleteAttendanceSheetById(sheetId: string): Promise<void> 
   }
 }
 
+export async function getAttendanceSheetsByIds(
+  sheetIds: string[]
+): Promise<
+  Array<{
+    id: string;
+    subjectId: string;
+    takenByUserId: string;
+    takenByRole: string;
+  }>
+> {
+  if (sheetIds.length === 0) return [];
+  try {
+    return await db
+      .select({
+        id: attendanceSheets.id,
+        subjectId: attendanceSheets.subjectId,
+        takenByUserId: attendanceSheets.takenByUserId,
+        takenByRole: attendanceSheets.takenByRole,
+      })
+      .from(attendanceSheets)
+      .where(inArray(attendanceSheets.id, sheetIds));
+  } catch (error) {
+    console.error('Database query failed in getAttendanceSheetsByIds:', error);
+    throw new Error('No se pudieron consultar las planillas seleccionadas.', {
+      cause: error,
+    });
+  }
+}
+
+export async function deleteAttendanceSheetsByIds(sheetIds: string[]): Promise<number> {
+  if (sheetIds.length === 0) return 0;
+  try {
+    const deleted = await db
+      .delete(attendanceSheets)
+      .where(inArray(attendanceSheets.id, sheetIds))
+      .returning({ id: attendanceSheets.id });
+    return deleted.length;
+  } catch (error) {
+    console.error('Database delete failed in deleteAttendanceSheetsByIds:', error);
+    throw new Error('No se pudieron eliminar las planillas seleccionadas.', {
+      cause: error,
+    });
+  }
+}
+
 export async function getMonthlyReportFromDb(
   courseId: string,
   year: number,

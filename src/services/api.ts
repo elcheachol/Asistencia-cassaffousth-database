@@ -271,6 +271,18 @@ export function apiDeleteAttendanceSheet(
   );
 }
 
+export function apiBulkDeleteAttendanceSheets(
+  ids: string[]
+): Promise<{ deletedCount: number; deletedIds: string[] }> {
+  return apiRequest<{ deletedCount: number; deletedIds: string[] }>(
+    '/api/attendance/bulk-delete',
+    {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    }
+  );
+}
+
 export function apiFetchMonthlyReport(
   courseId: string,
   year: number,
