@@ -98,7 +98,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         let aus = 0;
         sheet.entries.forEach(e => {
           if (e.status === 'presente') pres++;
-          else if (e.status === 'ausente') aus++;
+          else if (e.status === 'ausente' || e.status === 'justificado') aus++;
         });
 
         return {
@@ -140,7 +140,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       let aus = 0;
       sheet.entries.forEach(e => {
         if (e.status === 'presente') pres++;
-        else if (e.status === 'ausente') aus++;
+        else if (e.status === 'ausente' || e.status === 'justificado') aus++;
       });
 
       return {

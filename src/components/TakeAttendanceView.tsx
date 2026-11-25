@@ -96,7 +96,7 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
     if (!morningSheet) return new Set<string>();
     const absentIds = new Set<string>();
     morningSheet.entries.forEach(e => {
-      if (e.status === 'ausente') absentIds.add(e.studentId);
+      if (e.status === 'ausente' || e.status === 'justificado') absentIds.add(e.studentId);
     });
     return absentIds;
   }, [selectedDate, selectedCourseId]);
@@ -163,7 +163,7 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
       else if (e.status === 'tardanza') t++;
     });
     const total = students.length;
-    const rate = total > 0 ? Math.round(((p + j) / total) * 100) : 100;
+    const rate = total > 0 ? Math.round((p / total) * 100) : 100;
     return { p, a, j, t, total, rate };
   }, [entries, students.length]);
 
@@ -606,7 +606,7 @@ export const TakeAttendanceView: React.FC<TakeAttendanceViewProps> = ({
           </span>
           <span className="inline-flex items-center gap-1.5 font-semibold text-[#0F294A]">
             <span className="w-4 h-4 rounded bg-[#0F294A] text-white flex items-center justify-center text-[10px] font-school-mono">J</span>
-            Justificado
+            Justificado (1 falta)
           </span>
           <span className="inline-flex items-center gap-1.5 font-semibold text-amber-800">
             <span className="w-4 h-4 rounded bg-amber-600 text-white flex items-center justify-center text-[10px] font-school-mono">T</span>
