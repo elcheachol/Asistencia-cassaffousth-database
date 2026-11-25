@@ -212,7 +212,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
         <div className="grid grid-cols-1 md:grid-cols-12">
           {/* Left column: Institutional panel */}
-          <div className="md:col-span-5 bg-[#0F294A] text-white p-6 sm:p-8 flex flex-col justify-between">
+          <div className="md:col-span-4 bg-[#0F294A] text-white p-6 sm:p-7 flex flex-col justify-between">
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-wider text-rose-200 mb-3 flex items-center gap-1.5">
                 <BookOpen className="w-3.5 h-3.5" />
@@ -224,62 +224,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   ? 'Ingreso Institucional'
                   : 'Registro de Personal'}
               </h2>
-              <p className="text-xs text-slate-300 leading-relaxed mb-6">
+              <p className="text-xs text-slate-300 leading-relaxed">
                 {authMode === 'login'
                   ? 'Acceda con sus credenciales registradas para gestionar asistencias de sus cursos, cátedras y planillas mensuales.'
                   : 'Cree su cuenta una única vez indicando su función escolar. Sus credenciales quedarán guardadas para próximos ingresos.'}
               </p>
-
-              {/* Role overview blocks */}
-              <div className="space-y-3 border-t border-white/15 pt-5">
-                <div
-                  onClick={() => authMode === 'register' && setSelectedRole('profesor')}
-                  className={`p-3.5 rounded-md border transition-colors ${
-                    authMode === 'register' ? 'cursor-pointer' : ''
-                  } ${
-                    authMode === 'register' && selectedRole === 'profesor'
-                      ? 'bg-[#163864] border-white'
-                      : 'bg-[#0A1D37]/60 border-white/15'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2 text-white font-semibold text-sm">
-                      <GraduationCap className="w-4 h-4 text-rose-300" />
-                      <span>Profesores / Cátedras</span>
-                    </div>
-                    {authMode === 'register' && selectedRole === 'profesor' && (
-                      <CheckCircle2 className="w-4 h-4 text-white" />
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    Registro de materias y talleres técnicos de 1° a 3° Año.
-                  </p>
-                </div>
-
-                <div
-                  onClick={() => authMode === 'register' && setSelectedRole('preceptor')}
-                  className={`p-3.5 rounded-md border transition-colors ${
-                    authMode === 'register' ? 'cursor-pointer' : ''
-                  } ${
-                    authMode === 'register' && selectedRole === 'preceptor'
-                      ? 'bg-[#163864] border-white'
-                      : 'bg-[#0A1D37]/60 border-white/15'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2 text-white font-semibold text-sm">
-                      <ClipboardCheck className="w-4 h-4 text-rose-300" />
-                      <span>Preceptoría</span>
-                    </div>
-                    {authMode === 'register' && selectedRole === 'preceptor' && (
-                      <CheckCircle2 className="w-4 h-4 text-white" />
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    Asistencia general diaria de entrada (1° a 3° Año) y planillas mensuales.
-                  </p>
-                </div>
-              </div>
             </div>
 
             <div className="mt-6 pt-4 border-t border-white/15 text-xs text-slate-300">
@@ -288,7 +237,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           </div>
 
           {/* Right column: Auth Mode Switch + Login / Register Form */}
-          <div className="md:col-span-7 p-6 sm:p-8 flex flex-col justify-between bg-white">
+          <div className="md:col-span-8 p-6 sm:p-8 flex flex-col justify-between bg-white">
             <div>
               {/* Login / Register Segmented Control */}
               <div className="grid grid-cols-2 gap-1 p-1 bg-[#F3F5F8] rounded-md border border-[#D5DCE6] mb-5">
