@@ -160,6 +160,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const completedCount = todayStatusCards.filter(c => c.status === 'completed').length;
   const pendingCount = todayStatusCards.filter(c => c.status === 'pending').length;
 
+  const adminCourseCards = useMemo(() => {
+    if (!isAdmin) return [];
+    return courses.map(course => {
+      const courseStudents = allStudents.filter(st => st.courseId === course.id);
+      const todaySheetsForCourse = allSheets.filter(
+        s => s.date === todayStr && s.courseId === course.id
+      );
+      return {
+        courseId: course.id,
+        courseName: course.name,
+        specialty: course.specialty || 'Ciclo Básico Técnico',
+        turn: course.turn,
+        totalStudents: courseStudents.length,
+        todaySheetsCount: todaySheetsForCourse.length,
+      };
+    });
+  }, [isAdmin, courses, allStudents, allSheets, todayStr]);
+
+  const todayAllSheetsCount = useMemo(
+    () => allSheets.filter(s => s.date === todayStr).length,
+    [allSheets, todayStr]
+  );
+
   return (
     <div className="space-y-5">
       {/* Institutional Welcome Header */}
@@ -268,7 +291,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <BookOpen className="w-4 h-4 text-[#B91C1C] shrink-0" />
               <span>
                 {isAdmin
-                  ? 'Todos los Cursos del Establecimiento (Administración)'
+                  ? 'Cursos del Establecimiento (Administración)'
                   : isTeacher
                   ? 'Cátedras y Espacios Curriculares Asignados'
                   : 'Cursos del Turno (Asistencia General de Preceptoría)'}
@@ -276,79 +299,140 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </h2>
             <p className="text-xs text-slate-600 mt-0.5">
               {isAdmin
-                ? 'Seleccione cualquier curso para gestionar su asistencia general o por materia.'
+                ? 'Vista general de matrícula y movimientos del día. Puede abrir cualquier curso si necesita cargar o editar asistencias.'
                 : isTeacher
                 ? 'Seleccione una cátedra para cargar o revisar la lista de hoy.'
                 : 'Seleccione un curso para cargar o consultar la asistencia general del día.'}
             </p>
           </div>
 
-          <div className="flex items-center gap-3 text-xs shrink-0 font-medium text-slate-700">
-            <span className="flex items-center gap-1 font-school-mono">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-              <strong className="text-slate-900">{completedCount}</strong> Listos
-            </span>
-            <span className="text-slate-300" aria-hidden="true">·</span>
-            <span className="flex items-center gap-1 font-school-mono">
-              <Clock className="w-3.5 h-3.5 text-[#B91C1C]" />
-              <strong className="text-slate-900">{pendingCount}</strong> Pendientes
-            </span>
-          </div>
+          {isAdmin ? (
+            <div className="flex items-center gap-3 text-xs shrink-0 font-medium text-slate-600">
+              <span className="font-school-mono">
+                <strong className="text-[#0F294A]">{courses.length}</strong> cursos
+              </span>
+              <span className="text-slate-300" aria-hidden="true">·</span>
+              <span className="font-school-mono">
+                <strong className="text-[#0F294A]">{todayAllSheetsCount}</strong>{' '}
+                {todayAllSheetsCount === 1 ? 'planilla hoy' : 'planillas hoy'}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 text-xs shrink-0 font-medium text-slate-700">
+              <span className="flex items-center gap-1 font-school-mono">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                <strong className="text-slate-900">{completedCount}</strong> Listos
+              </span>
+              <span className="text-slate-300" aria-hidden="true">·</span>
+              <span className="flex items-center gap-1 font-school-mono">
+                <Clock className="w-3.5 h-3.5 text-[#B91C1C]" />
+                <strong className="text-slate-900">{pendingCount}</strong> Pendientes
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Clean Institutional Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {todayStatusCards.map((item, idx) => {
-            const isCompleted = item.status === 'completed';
-
-            return (
+        {isAdmin ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {adminCourseCards.map((course) => (
               <div
-                key={idx}
-                onClick={() => onOpenTakeAttendance(item.courseId)}
+                key={course.courseId}
+                onClick={() => onOpenTakeAttendance(course.courseId)}
                 className="p-4 rounded-md border border-[#D5DCE6] bg-white hover:border-[#0F294A] transition-colors cursor-pointer flex flex-col justify-between group"
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 text-xs mb-1.5">
                     <span className="font-semibold text-[#0F294A]">
-                      {item.courseName}
+                      Turno {course.turn}
                     </span>
-                    <span
-                      className={`text-[11px] font-semibold ${
-                        isCompleted ? 'text-emerald-700' : 'text-[#B91C1C]'
-                      }`}
-                    >
-                      {isCompleted ? 'Asentado' : 'Pendiente hoy'}
+                    <span className="text-[11px] font-school-mono text-slate-500">
+                      {course.totalStudents} {course.totalStudents === 1 ? 'alumno' : 'alumnos'}
                     </span>
                   </div>
 
-                  <h3 className="font-school-serif font-bold text-sm text-slate-900 leading-snug group-hover:text-[#0F294A] transition-colors">
-                    {item.title}
+                  <h3 className="font-school-serif font-bold text-base text-slate-900 leading-snug group-hover:text-[#0F294A] transition-colors">
+                    {course.courseName}
                   </h3>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    {item.specialty || 'Ciclo Básico'}
+                    {course.specialty}
                   </p>
                 </div>
 
                 <div className="mt-3.5 pt-2.5 border-t border-[#E4E9F0] flex items-center justify-between text-xs">
-                  {isCompleted ? (
-                    <span className="text-slate-700 font-medium text-[11px] font-school-mono">
-                      {item.presentes} Pres. · {item.ausentes} Aus.
+                  {course.todaySheetsCount > 0 ? (
+                    <span className="text-[#0F294A] font-medium text-[11px] font-school-mono">
+                      {course.todaySheetsCount}{' '}
+                      {course.todaySheetsCount === 1 ? 'registro hoy' : 'registros hoy'}
                     </span>
                   ) : (
-                    <span className="text-slate-600 font-medium text-[11px] font-school-mono">
-                      {item.totalStudents} alumnos
+                    <span className="text-slate-500 text-[11px]">
+                      Sin registros hoy
                     </span>
                   )}
 
                   <span className="text-[#0F294A] group-hover:text-[#B91C1C] font-semibold text-[11px] flex items-center gap-0.5 transition-colors">
-                    <span>{isCompleted ? 'Revisar' : 'Cargar'}</span>
+                    <span>Cargar / Editar</span>
                     <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                   </span>
                 </div>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {todayStatusCards.map((item, idx) => {
+              const isCompleted = item.status === 'completed';
+
+              return (
+                <div
+                  key={idx}
+                  onClick={() => onOpenTakeAttendance(item.courseId)}
+                  className="p-4 rounded-md border border-[#D5DCE6] bg-white hover:border-[#0F294A] transition-colors cursor-pointer flex flex-col justify-between group"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 text-xs mb-1.5">
+                      <span className="font-semibold text-[#0F294A]">
+                        {item.courseName}
+                      </span>
+                      <span
+                        className={`text-[11px] font-semibold ${
+                          isCompleted ? 'text-emerald-700' : 'text-[#B91C1C]'
+                        }`}
+                      >
+                        {isCompleted ? 'Asentado' : 'Pendiente hoy'}
+                      </span>
+                    </div>
+
+                    <h3 className="font-school-serif font-bold text-sm text-slate-900 leading-snug group-hover:text-[#0F294A] transition-colors">
+                      {item.title}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {item.specialty || 'Ciclo Básico'}
+                    </p>
+                  </div>
+
+                  <div className="mt-3.5 pt-2.5 border-t border-[#E4E9F0] flex items-center justify-between text-xs">
+                    {isCompleted ? (
+                      <span className="text-slate-700 font-medium text-[11px] font-school-mono">
+                        {item.presentes} Pres. · {item.ausentes} Aus.
+                      </span>
+                    ) : (
+                      <span className="text-slate-600 font-medium text-[11px] font-school-mono">
+                        {item.totalStudents} alumnos
+                      </span>
+                    )}
+
+                    <span className="text-[#0F294A] group-hover:text-[#B91C1C] font-semibold text-[11px] flex items-center gap-0.5 transition-colors">
+                      <span>{isCompleted ? 'Revisar' : 'Cargar'}</span>
+                      <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
