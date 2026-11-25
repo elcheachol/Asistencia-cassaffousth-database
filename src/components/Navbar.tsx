@@ -7,7 +7,6 @@ import {
   PlusCircle,
   LogOut,
   Lock,
-  BookOpen,
   UserX,
   Bell,
 } from 'lucide-react';
@@ -311,75 +310,75 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             type="button"
             onClick={() => onSelectTab('dashboard')}
-            className={`py-1 px-2 font-semibold flex flex-col items-center gap-0.5 ${
+            className={`flex-1 min-w-0 py-1 px-1 font-semibold flex flex-col items-center gap-0.5 cursor-pointer ${
               currentTab === 'dashboard' ? 'text-white' : 'text-slate-400 hover:text-white'
             }`}
           >
-            <CalendarCheck className="w-4 h-4" />
-            <span className="text-[10px]">Inicio</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onOpenTakeAttendance}
-            className={`py-1 px-2 font-semibold flex flex-col items-center gap-0.5 ${
-              currentTab === 'take_attendance' ? 'text-white' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <BookOpen className="w-4 h-4" />
-            <span className="text-[10px]">Asistencia</span>
+            <CalendarCheck className="w-4 h-4 shrink-0" />
+            <span className="text-[10px] leading-tight truncate">Inicio</span>
           </button>
 
           <button
             type="button"
             onClick={() => onSelectTab('monthly_report')}
-            className={`py-1 px-2 font-semibold flex flex-col items-center gap-0.5 ${
+            className={`flex-1 min-w-0 py-1 px-1 font-semibold flex flex-col items-center gap-0.5 cursor-pointer ${
               currentTab === 'monthly_report' ? 'text-white' : 'text-slate-400 hover:text-white'
             }`}
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span className="text-[10px]">Planillas</span>
+            <FileSpreadsheet className="w-4 h-4 shrink-0" />
+            <span className="text-[10px] leading-tight truncate">Planillas</span>
           </button>
 
           <button
             type="button"
             onClick={() => onSelectTab('students')}
-            className={`py-1 px-2 font-semibold flex flex-col items-center gap-0.5 ${
+            className={`flex-1 min-w-0 py-1 px-1 font-semibold flex flex-col items-center gap-0.5 cursor-pointer ${
               currentTab === 'students' ? 'text-white' : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Users className="w-4 h-4" />
-            <span className="text-[10px]">Alumnos</span>
+            <Users className="w-4 h-4 shrink-0" />
+            <span className="text-[10px] leading-tight truncate">Alumnos</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSelectTab('history')}
+            className={`flex-1 min-w-0 py-1 px-1 font-semibold flex flex-col items-center gap-0.5 cursor-pointer ${
+              currentTab === 'history' ? 'text-white' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <History className="w-4 h-4 shrink-0" />
+            <span className="text-[10px] leading-tight truncate">Historial</span>
           </button>
 
           {isAdmin && (
             <button
               type="button"
               onClick={() => onSelectTab('admin_requests')}
-              className={`py-1 px-2 font-semibold flex flex-col items-center gap-0.5 relative ${
+              className={`flex-1 min-w-0 py-1 px-1 font-semibold flex flex-col items-center gap-0.5 relative cursor-pointer ${
                 currentTab === 'admin_requests' ? 'text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
               <div className="relative">
-                <Bell className="w-4 h-4" />
+                <Bell className="w-4 h-4 shrink-0" />
                 {pendingRequestsCount > 0 && (
                   <span className="absolute -top-1 -right-2 px-1 text-[9px] leading-tight font-school-mono font-bold rounded-full bg-[#B91C1C] text-white">
                     {pendingRequestsCount}
                   </span>
                 )}
               </div>
-              <span className="text-[10px]">Solicitudes</span>
+              <span className="text-[10px] leading-tight truncate">Solicitudes</span>
             </button>
           )}
 
           <button
             type="button"
             onClick={onLogout}
-            className="py-1 px-2 font-semibold flex flex-col items-center gap-0.5 text-slate-400 hover:text-rose-200"
+            className="flex-1 min-w-0 py-1 px-1 font-semibold flex flex-col items-center gap-0.5 text-slate-400 hover:text-rose-200 cursor-pointer"
             title="Cerrar sesión"
           >
-            <LogOut className="w-4 h-4" />
-            <span className="text-[10px]">Salir</span>
+            <LogOut className="w-4 h-4 shrink-0" />
+            <span className="text-[10px] leading-tight truncate">Salir</span>
           </button>
         </div>
       </div>
