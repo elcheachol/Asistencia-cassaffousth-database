@@ -74,7 +74,7 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
   );
 
   const [selectedMonth, setSelectedMonth] = useState<number>(initialMonth);
-  const [selectedYear, setSelectedYear] = useState<number>(initialYear);
+  const selectedYear = initialYear;
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
     isTeacher ? 'all' : 'sub-general'
   );
@@ -331,71 +331,40 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
               </div>
             </div>
 
-            {/* Period Bar: Segmented Year Switch + Direct 1-Click Month Grid */}
-            <div className="pt-3 border-t border-[#E4E9F0] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="shrink-0">
-                <span className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Ciclo Lectivo
+            {/* Period Bar: Direct 1-Click 12-Month Calendar Selector */}
+            <div className="pt-3 border-t border-[#E4E9F0]">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                  Período Mensual
                 </span>
-                <div
-                  role="group"
-                  aria-label="Año lectivo"
-                  className="inline-flex p-0.5 bg-[#F3F5F8] border border-[#D5DCE6] rounded-md"
-                >
-                  {[2026, 2025].map(yearOption => {
-                    const active = selectedYear === yearOption;
-                    return (
-                      <button
-                        key={yearOption}
-                        type="button"
-                        onClick={() => setSelectedYear(yearOption)}
-                        className={`px-3 py-1.5 rounded text-xs font-school-mono font-bold tabular-nums transition-colors cursor-pointer whitespace-nowrap ${
-                          active
-                            ? 'bg-[#0F294A] text-white'
-                            : 'text-slate-600 hover:text-[#0F294A]'
-                        }`}
-                      >
-                        {yearOption}
-                      </button>
-                    );
-                  })}
-                </div>
+                <span className="text-xs font-semibold text-[#0F294A]">
+                  {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+                </span>
               </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                    Período Mensual
-                  </span>
-                  <span className="text-xs font-semibold text-[#0F294A]">
-                    {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
-                  </span>
-                </div>
-                <div
-                  role="group"
-                  aria-label="Mes a consultar"
-                  className="grid grid-cols-6 gap-1"
-                >
-                  {MONTH_SHORT_NAMES.map((shortLabel, idx) => {
-                    const monthNumber = idx + 1;
-                    const active = selectedMonth === monthNumber;
-                    return (
-                      <button
-                        key={shortLabel}
-                        type="button"
-                        onClick={() => setSelectedMonth(monthNumber)}
-                        title={MONTH_NAMES[idx]}
-                        className={`py-1.5 px-1 rounded text-[11px] font-semibold transition-colors cursor-pointer text-center whitespace-nowrap border ${
-                          active
-                            ? 'bg-[#B91C1C] text-white border-[#B91C1C]'
-                            : 'bg-[#F8FAFC] text-slate-700 border-[#E4E9F0] hover:border-[#0F294A] hover:text-[#0F294A]'
-                        }`}
-                      >
-                        {shortLabel}
-                      </button>
-                    );
-                  })}
-                </div>
+              <div
+                role="group"
+                aria-label="Mes a consultar"
+                className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-1"
+              >
+                {MONTH_SHORT_NAMES.map((shortLabel, idx) => {
+                  const monthNumber = idx + 1;
+                  const active = selectedMonth === monthNumber;
+                  return (
+                    <button
+                      key={shortLabel}
+                      type="button"
+                      onClick={() => setSelectedMonth(monthNumber)}
+                      title={MONTH_NAMES[idx]}
+                      className={`py-1.5 px-1 rounded text-[11px] font-semibold transition-colors cursor-pointer text-center whitespace-nowrap border ${
+                        active
+                          ? 'bg-[#B91C1C] text-white border-[#B91C1C]'
+                          : 'bg-[#F8FAFC] text-slate-700 border-[#E4E9F0] hover:border-[#0F294A] hover:text-[#0F294A]'
+                      }`}
+                    >
+                      {shortLabel}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -564,16 +533,16 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
                 )}
 
                 {/* Summary columns */}
-                <th className="py-2.5 px-1.5 text-center bg-[#0A1D37] text-emerald-300 font-school-mono font-bold border-r border-white/15" title="Total Presentes">
+                <th className="py-2.5 px-1.5 text-center bg-[#0A1D37] text-white font-school-mono font-bold border-r border-white/15" title="Total Presentes">
                   P
                 </th>
-                <th className="py-2.5 px-1.5 text-center bg-[#0A1D37] text-rose-300 font-school-mono font-bold border-r border-white/15" title="Total Ausentes">
+                <th className="py-2.5 px-1.5 text-center bg-[#0A1D37] text-white font-school-mono font-bold border-r border-white/15" title="Total Ausentes">
                   A
                 </th>
-                <th className="py-2.5 px-1.5 text-center bg-[#0A1D37] text-sky-200 font-school-mono font-bold border-r border-white/15" title="Total Justificados">
+                <th className="py-2.5 px-1.5 text-center bg-[#0A1D37] text-white font-school-mono font-bold border-r border-white/15" title="Total Justificados">
                   J
                 </th>
-                <th className="py-2.5 px-1.5 text-center bg-[#0A1D37] text-amber-200 font-school-mono font-bold border-r border-white/15" title="Total Tardanzas">
+                <th className="py-2.5 px-1.5 text-center bg-[#0A1D37] text-white font-school-mono font-bold border-r border-white/15" title="Total Tardanzas">
                   T
                 </th>
                 <th className="py-2.5 px-2 text-center bg-[#0A1D37] text-white font-bold border-r border-white/15" title="Faltas Computadas: A + 0.5*T">
@@ -591,7 +560,7 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
             <tbody className="divide-y divide-[#E4E9F0]">
               {displayedSummaries.length === 0 ? (
                 <tr>
-                  <td colSpan={schoolDaysWithData.length + 10} className="py-10 text-center text-slate-500 italic">
+                  <td colSpan={Math.max(1, schoolDaysWithData.length) + 10} className="py-10 text-center text-slate-500 italic">
                     No se encontraron alumnos con los criterios de búsqueda.
                   </td>
                 </tr>
@@ -620,80 +589,70 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
                       </td>
 
                       {/* Day cells */}
-                      {schoolDaysWithData.map(day => {
-                        const status = dailyStatus[day];
-                        let cellContent = '-';
-                        let cellClass = 'text-slate-300 font-normal';
+                      {schoolDaysWithData.length === 0 ? (
+                        <td className="py-1.5 px-3 text-center text-slate-400 border-r border-[#E4E9F0]">
+                          —
+                        </td>
+                      ) : (
+                        schoolDaysWithData.map(day => {
+                          const status = dailyStatus[day];
+                          let cellContent = '-';
+                          let cellClass = 'text-slate-300 font-normal';
 
-                        if (status === 'presente') {
-                          cellContent = 'P';
-                          cellClass = 'text-emerald-800 font-bold bg-emerald-50/70';
-                        } else if (status === 'ausente') {
-                          cellContent = 'A';
-                          cellClass = 'text-[#B91C1C] font-bold bg-rose-50';
-                        } else if (status === 'justificado') {
-                          cellContent = 'J';
-                          cellClass = 'text-[#0F294A] font-bold bg-slate-100';
-                        } else if (status === 'tardanza') {
-                          cellContent = 'T';
-                          cellClass = 'text-amber-800 font-bold bg-amber-50/80';
-                        }
+                          if (status === 'presente') {
+                            cellContent = 'P';
+                            cellClass = 'text-emerald-800 font-bold bg-emerald-50/70';
+                          } else if (status === 'ausente') {
+                            cellContent = 'A';
+                            cellClass = 'text-[#B91C1C] font-bold bg-rose-50';
+                          } else if (status === 'justificado') {
+                            cellContent = 'J';
+                            cellClass = 'text-[#0F294A] font-bold bg-slate-100';
+                          } else if (status === 'tardanza') {
+                            cellContent = 'T';
+                            cellClass = 'text-amber-800 font-bold bg-amber-50/80';
+                          }
 
-                        return (
-                          <td
-                            key={day}
-                            className={`py-1.5 px-1 text-center font-school-mono text-xs border-r border-[#E4E9F0] ${cellClass}`}
-                          >
-                            {cellContent}
-                          </td>
-                        );
-                      })}
+                          return (
+                            <td
+                              key={day}
+                              className={`py-1.5 px-1 text-center font-school-mono text-xs border-r border-[#E4E9F0] ${cellClass}`}
+                            >
+                              {cellContent}
+                            </td>
+                          );
+                        })
+                      )}
 
-                      {/* Summary values */}
-                      <td className="py-1.5 px-1.5 text-center font-school-mono font-bold text-emerald-800 border-r border-[#E4E9F0]">
+                      {/* Summary values (uniform institutional ink color) */}
+                      <td className="py-1.5 px-1.5 text-center font-school-mono font-bold text-[#0F294A] border-r border-[#E4E9F0]">
                         {presentes}
                       </td>
-                      <td className="py-1.5 px-1.5 text-center font-school-mono font-bold text-[#B91C1C] border-r border-[#E4E9F0]">
+                      <td className="py-1.5 px-1.5 text-center font-school-mono font-bold text-[#0F294A] border-r border-[#E4E9F0]">
                         {ausentes}
                       </td>
                       <td className="py-1.5 px-1.5 text-center font-school-mono font-bold text-[#0F294A] border-r border-[#E4E9F0]">
                         {justificados}
                       </td>
-                      <td className="py-1.5 px-1.5 text-center font-school-mono font-bold text-amber-800 border-r border-[#E4E9F0]">
+                      <td className="py-1.5 px-1.5 text-center font-school-mono font-bold text-[#0F294A] border-r border-[#E4E9F0]">
                         {tardanzas}
                       </td>
-                      <td className="py-1.5 px-2 text-center font-school-mono font-bold text-slate-900 bg-[#F8FAFC] border-r border-[#E4E9F0]">
+                      <td className="py-1.5 px-2 text-center font-school-mono font-bold text-[#0F294A] bg-[#F8FAFC] border-r border-[#E4E9F0]">
                         {totalFaltasComputadas}
                       </td>
-                      <td className="py-1.5 px-2 text-center font-school-mono font-bold border-r border-[#E4E9F0]">
-                        <span
-                          className={
-                            porcentajeAsistencia >= 85
-                              ? 'text-emerald-700'
-                              : porcentajeAsistencia >= 75
-                              ? 'text-amber-700'
-                              : 'text-[#B91C1C]'
-                          }
-                        >
-                          {porcentajeAsistencia}%
-                        </span>
+                      <td className="py-1.5 px-2 text-center font-school-mono font-bold text-[#0F294A] border-r border-[#E4E9F0]">
+                        {porcentajeAsistencia}%
                       </td>
 
                       {/* Condition */}
                       <td className="py-1.5 px-2.5 text-center print:hidden whitespace-nowrap">
-                        {alertaFaltas === 'critico' ? (
-                          <span className="text-[11px] font-bold text-[#B91C1C]">
-                            Libre (≥25)
-                          </span>
-                        ) : alertaFaltas === 'advertencia' ? (
-                          <span className="text-[11px] font-bold text-amber-700">
-                            Advertencia
-                          </span>
-                        ) : (
-                          <span className="text-[11px] font-semibold text-emerald-700">
-                            Regular
-                          </span>
-                        )}
+                        <span className="text-[11px] font-semibold text-[#0F294A]">
+                          {alertaFaltas === 'critico'
+                            ? 'Libre (≥25)'
+                            : alertaFaltas === 'advertencia'
+                            ? 'Advertencia'
+                            : 'Regular'}
+                        </span>
                       </td>
                     </tr>
                   );
